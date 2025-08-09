@@ -1,0 +1,625 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Plus, 
+  Search, 
+  Filter, 
+  Quote,
+  Calendar,
+  Tag,
+  Languages,
+  Trash2,
+  Edit3,
+  Eye,
+  ChevronDown,
+  ChevronUp,
+  X,
+  Copy
+} from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { Database } from '../lib/supabase';
+import toast from 'react-hot-toast';
+
+type QuoteWithCategory = Database['public']['Tables']['quotes']['Row'] & {
+  categories: Database['public']['Tables']['categories']['Row'];
+};
+
+const QuotesList: React.FC = () => {
+  const [quotes, setQuotes] = useState<QuoteWithCategory[]>([]);
+  const [categories, setCategories] = useState<Database['public']['Tables']['categories']['Row'][]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedLanguage, setSelectedLanguage] = useState('');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingQuote, setEditingQuote] = useState<QuoteWithCategory | null>(null);
+  const [selectedQuote, setSelectedQuote] = useState<QuoteWithCategory | null>(null);
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+
+  const [newQuote, setNewQuote] = useState({
+    text: '',
+    category_id: '',
+    language: 'en'
+  });
+
+  useEffect(() => {
+    loadQuotes();
+    loadCategories();
+  }, []);
+
+  const loadQuotes = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('quotes')
+        .select(`
+          *,
+          categories (*)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setQuotes(data || []);
+    } catch (error) {
+      console.error('Error loading quotes:', error);
+      toast.error('Failed to load quotes');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error) {
+      console.error('Error loading categories:', error);
+    }
+  };
+
+  const handleAddQuote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newQuote.text.trim() || !newQuote.category_id) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('quotes')
+        .insert([newQuote]);
+
+      if (error) throw error;
+
+      toast.success('Quote added successfully');
+      setNewQuote({ text: '', category_id: '', language: 'en' });
+      setShowAddForm(false);
+      loadQuotes();
+    } catch (error) {
+      console.error('Error adding quote:', error);
+      toast.error('Failed to add quote');
+    }
+  };
+
+  const handleUpdateQuote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingQuote) return;
+
+    try {
+      const { error } = await supabase
+        .from('quotes')
+        .update({
+          text: editingQuote.text,
+          category_id: editingQuote.category_id,
+          language: editingQuote.language
+        })
+        .eq('id', editingQuote.id);
+
+      if (error) throw error;
+
+      toast.success('Quote updated successfully');
+      setEditingQuote(null);
+      loadQuotes();
+    } catch (error) {
+      console.error('Error updating quote:', error);
+      toast.error('Failed to update quote');
+    }
+  };
+
+  const handleDeleteQuote = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this quote?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('quotes')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast.success('Quote deleted successfully');
+      loadQuotes();
+    } catch (error) {
+      console.error('Error deleting quote:', error);
+      toast.error('Failed to delete quote');
+    }
+  };
+
+  const filteredQuotes = quotes.filter(quote => {
+    const matchesSearch = quote.text.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === '' || quote.category_id === selectedCategory;
+    const matchesLanguage = selectedLanguage === '' || quote.language === selectedLanguage;
+    
+    return matchesSearch && matchesCategory && matchesLanguage;
+  });
+
+  const toggleCardExpansion = (quoteId: string) => {
+    const newExpanded = new Set(expandedCards);
+    if (newExpanded.has(quoteId)) {
+      newExpanded.delete(quoteId);
+    } else {
+      newExpanded.add(quoteId);
+    }
+    setExpandedCards(newExpanded);
+  };
+
+  const truncateText = (text: string, maxLength: number = 150) => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+  };
+
+  const uniqueLanguages = [...new Set(quotes.map(q => q.language))];
+
+  const copyToClipboard = async (text: string, type: string = 'content') => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`${type} copied to clipboard!`);
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
+      toast.error('Failed to copy to clipboard');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-8">
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 bg-slate-200 rounded w-1/4"></div>
+          <div className="grid gap-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-32 bg-slate-200 rounded-lg"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">Quotes</h1>
+            <p className="text-slate-600">Collect and organize meaningful quotes</p>
+          </div>
+          <motion.button
+            onClick={() => setShowAddForm(true)}
+            className="bg-blue-600 text-white px-4 sm:px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2 shadow-sm w-full sm:w-auto justify-center"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <Plus className="w-5 h-5" />
+            <span>Add Quote</span>
+          </motion.button>
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-col gap-4 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Search quotes..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <div className="flex flex-col sm:flex-row gap-4">
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">All Categories</option>
+            {categories.map(category => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={selectedLanguage}
+            onChange={(e) => setSelectedLanguage(e.target.value)}
+            className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">All Languages</option>
+            {uniqueLanguages.map(lang => (
+              <option key={lang} value={lang}>
+                {lang === 'en' ? 'English' : lang.charAt(0).toUpperCase() + lang.slice(1)}
+              </option>
+            ))}
+          </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Quotes List */}
+      <div className="space-y-4">
+        <AnimatePresence>
+          {filteredQuotes.map((quote) => (
+            <motion.div
+              key={quote.id}
+              className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              layout
+            >
+              <div className="space-y-4">
+                {/* Header */}
+                <div className="flex items-start justify-between">
+                <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <Quote className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-600">
+                      {quote.categories?.name}
+                    </span>
+                    <span className="text-slate-300">•</span>
+                    <Languages className="w-4 h-4 text-slate-400" />
+                    <span className="text-sm text-slate-500">
+                      {quote.language === 'en' ? 'English' : quote.language}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => copyToClipboard(quote.text, 'Quote')}
+                    className="p-2 text-slate-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50"
+                    title="Copy quote"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setSelectedQuote(quote)}
+                    className="p-2 text-slate-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50"
+                    title="View details"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setEditingQuote(quote)}
+                    className="p-2 text-slate-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50"
+                    title="Edit quote"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteQuote(quote.id)}
+                    className="p-2 text-slate-400 hover:text-red-600 transition-colors rounded-lg hover:bg-red-50"
+                    title="Delete quote"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Quote Content */}
+              <div>
+                <blockquote className="text-slate-800 text-base sm:text-lg leading-relaxed border-l-4 border-blue-200 pl-4 italic">
+                  "{expandedCards.has(quote.id) ? quote.text : truncateText(quote.text)}"
+                  </blockquote>
+                
+                {quote.text.length > 150 && (
+                  <button
+                    onClick={() => toggleCardExpansion(quote.id)}
+                    className="mt-2 text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center space-x-1"
+                  >
+                    <span>{expandedCards.has(quote.id) ? 'Show less' : 'Show more'}</span>
+                    {expandedCards.has(quote.id) ? (
+                      <ChevronUp className="w-4 h-4" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4" />
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="pt-3 border-t border-slate-100">
+                  <div className="flex items-center text-sm text-slate-500">
+                    <Calendar className="w-4 h-4 mr-1" />
+                    {new Date(quote.created_at).toLocaleDateString()}
+                  </div>
+              </div>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+
+        {filteredQuotes.length === 0 && (
+          <div className="text-center py-12">
+            <Quote className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-slate-900 mb-2">No quotes found</h3>
+            <p className="text-slate-600">
+              {searchTerm || selectedCategory || selectedLanguage
+                ? 'Try adjusting your filters'
+                : 'Start by adding your first quote'
+              }
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Quote Detail Modal */}
+      <AnimatePresence>
+        {selectedQuote && (
+          <motion.div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-slate-900">Quote Details</h3>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => copyToClipboard(selectedQuote.text, 'Quote')}
+                    className="p-2 text-slate-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50"
+                    title="Copy quote"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center space-x-2 bg-blue-50 px-3 py-1 rounded-full">
+                    <Quote className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-600">
+                      {selectedQuote.categories?.name}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2 bg-slate-100 px-3 py-1 rounded-full">
+                    <Languages className="w-4 h-4 text-slate-600" />
+                    <span className="text-sm text-slate-600">
+                      {selectedQuote.language === 'en' ? 'English' : selectedQuote.language}
+                    </span>
+                  </div>
+                </div>
+
+                <blockquote className="text-slate-800 text-lg leading-relaxed border-l-4 border-blue-200 pl-6 italic bg-blue-50 p-6 rounded-r-lg">
+                  "{selectedQuote.text}"
+                </blockquote>
+
+                <div className="flex items-center justify-between text-sm text-slate-500 pt-4 border-t border-slate-200">
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center">
+                      <Calendar className="w-4 h-4 mr-1" />
+                      Created: {new Date(selectedQuote.created_at).toLocaleDateString()}
+                    </div>
+                    {selectedQuote.updated_at !== selectedQuote.created_at && (
+                      <div className="flex items-center">
+                        <Calendar className="w-4 h-4 mr-1" />
+                        Updated: {new Date(selectedQuote.updated_at).toLocaleDateString()}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Add Quote Modal */}
+      <AnimatePresence>
+        {showAddForm && (
+          <motion.div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+            >
+              <h3 className="text-xl font-bold text-slate-900 mb-6">Add New Quote</h3>
+              
+              <form onSubmit={handleAddQuote} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Quote Text *
+                  </label>
+                  <textarea
+                    value={newQuote.text}
+                    onChange={(e) => setNewQuote({ ...newQuote, text: e.target.value })}
+                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    rows={4}
+                    placeholder="Enter the quote..."
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Category *
+                  </label>
+                  <select
+                    value={newQuote.category_id}
+                    onChange={(e) => setNewQuote({ ...newQuote, category_id: e.target.value })}
+                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  >
+                    <option value="">Select a category</option>
+                    {categories.map(category => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Language
+                  </label>
+                  <select
+                    value={newQuote.language}
+                    onChange={(e) => setNewQuote({ ...newQuote, language: e.target.value })}
+                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="en">English</option>
+                    <option value="es">Spanish</option>
+                    <option value="fr">French</option>
+                    <option value="de">German</option>
+                    <option value="hi">Hindi</option>
+                    <option value="zh">Chinese</option>
+                    <option value="ja">Japanese</option>
+                    <option value="ar">Arabic</option>
+                  </select>
+                </div>
+
+                <div className="flex justify-end space-x-4 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddForm(false)}
+                    className="px-4 py-2 text-slate-600 hover:text-slate-800 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Add Quote
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Quote Modal */}
+      <AnimatePresence>
+        {editingQuote && (
+          <motion.div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+            >
+              <h3 className="text-xl font-bold text-slate-900 mb-6">Edit Quote</h3>
+              
+              <form onSubmit={handleUpdateQuote} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Quote Text *
+                  </label>
+                  <textarea
+                    value={editingQuote.text}
+                    onChange={(e) => setEditingQuote({ ...editingQuote, text: e.target.value })}
+                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    rows={4}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Category *
+                  </label>
+                  <select
+                    value={editingQuote.category_id}
+                    onChange={(e) => setEditingQuote({ ...editingQuote, category_id: e.target.value })}
+                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  >
+                    {categories.map(category => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Language
+                  </label>
+                  <select
+                    value={editingQuote.language}
+                    onChange={(e) => setEditingQuote({ ...editingQuote, language: e.target.value })}
+                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="en">English</option>
+                    <option value="es">Spanish</option>
+                    <option value="fr">French</option>
+                    <option value="de">German</option>
+                    <option value="hi">Hindi</option>
+                    <option value="zh">Chinese</option>
+                    <option value="ja">Japanese</option>
+                    <option value="ar">Arabic</option>
+                  </select>
+                </div>
+
+                <div className="flex justify-end space-x-4 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setEditingQuote(null)}
+                    className="px-4 py-2 text-slate-600 hover:text-slate-800 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Update Quote
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+export default QuotesList;
