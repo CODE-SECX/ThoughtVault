@@ -36,7 +36,7 @@ export type Database = {
         Row: {
           id: string;
           text: string;
-          category_id: string;
+          category_ids: string[];
           language: string;
           created_at: string;
           updated_at: string;
@@ -44,7 +44,7 @@ export type Database = {
         Insert: {
           id?: string;
           text: string;
-          category_id: string;
+          category_ids: string[];
           language?: string;
           created_at?: string;
           updated_at?: string;
@@ -52,7 +52,7 @@ export type Database = {
         Update: {
           id?: string;
           text?: string;
-          category_id?: string;
+          category_ids?: string[];
           language?: string;
           created_at?: string;
           updated_at?: string;
@@ -63,7 +63,7 @@ export type Database = {
           id: string;
           title: string;
           description: string;
-          category_id: string;
+          category_ids: string[];
           language: string;
           date: string | null;
           word_count: number;
@@ -78,7 +78,7 @@ export type Database = {
           id?: string;
           title: string;
           description: string;
-          category_id: string;
+          category_ids: string[];
           language?: string;
           date?: string | null;
           word_count?: number;
@@ -93,7 +93,7 @@ export type Database = {
           id?: string;
           title?: string;
           description?: string;
-          category_id?: string;
+          category_ids?: string[];
           language?: string;
           date?: string | null;
           word_count?: number;

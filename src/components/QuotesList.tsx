@@ -20,25 +20,25 @@ import { supabase } from '../lib/supabase';
 import { Database } from '../lib/supabase';
 import toast from 'react-hot-toast';
 
-type QuoteWithCategory = Database['public']['Tables']['quotes']['Row'] & {
-  categories: Database['public']['Tables']['categories']['Row'];
+type QuoteWithCategories = Database['public']['Tables']['quotes']['Row'] & {
+  categories: Database['public']['Tables']['categories']['Row'][];
 };
 
 const QuotesList: React.FC = () => {
-  const [quotes, setQuotes] = useState<QuoteWithCategory[]>([]);
+  const [quotes, setQuotes] = useState<QuoteWithCategories[]>([]);
   const [categories, setCategories] = useState<Database['public']['Tables']['categories']['Row'][]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedLanguage, setSelectedLanguage] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
-  const [editingQuote, setEditingQuote] = useState<QuoteWithCategory | null>(null);
-  const [selectedQuote, setSelectedQuote] = useState<QuoteWithCategory | null>(null);
+  const [editingQuote, setEditingQuote] = useState<QuoteWithCategories | null>(null);
+  const [selectedQuote, setSelectedQuote] = useState<QuoteWithCategories | null>(null);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
 
   const [newQuote, setNewQuote] = useState({
     text: '',
-    category_id: '',
+    category_ids: [] as string[],
     language: 'en'
   });
 
@@ -52,14 +52,29 @@ const QuotesList: React.FC = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('quotes')
-        .select(`
-          *,
-          categories (*)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setQuotes(data || []);
+
+      // Load categories for each quote
+      const quotesWithCategories = await Promise.all(
+        (data || []).map(async (quote) => {
+          const { data: categoryData, error: categoryError } = await supabase
+            .from('categories')
+            .select('*')
+            .in('id', quote.category_ids);
+
+          if (categoryError) {
+            console.error('Error loading categories for quote:', categoryError);
+            return { ...quote, categories: [] };
+          }
+
+          return { ...quote, categories: categoryData || [] };
+        })
+      );
+
+      setQuotes(quotesWithCategories);
     } catch (error) {
       console.error('Error loading quotes:', error);
       toast.error('Failed to load quotes');
@@ -84,8 +99,8 @@ const QuotesList: React.FC = () => {
 
   const handleAddQuote = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newQuote.text.trim() || !newQuote.category_id) {
-      toast.error('Please fill in all required fields');
+    if (!newQuote.text.trim() || newQuote.category_ids.length === 0) {
+      toast.error('Please fill in all required fields and select at least one category');
       return;
     }
 
@@ -97,7 +112,7 @@ const QuotesList: React.FC = () => {
       if (error) throw error;
 
       toast.success('Quote added successfully');
-      setNewQuote({ text: '', category_id: '', language: 'en' });
+      setNewQuote({ text: '', category_ids: [], language: 'en' });
       setShowAddForm(false);
       loadQuotes();
     } catch (error) {
@@ -115,7 +130,7 @@ const QuotesList: React.FC = () => {
         .from('quotes')
         .update({
           text: editingQuote.text,
-          category_id: editingQuote.category_id,
+          category_ids: editingQuote.category_ids,
           language: editingQuote.language
         })
         .eq('id', editingQuote.id);
@@ -150,9 +165,36 @@ const QuotesList: React.FC = () => {
     }
   };
 
+  const handleCategoryToggle = (categoryId: string, isNewQuote: boolean = true) => {
+    if (isNewQuote) {
+      setNewQuote(prev => ({
+        ...prev,
+        category_ids: prev.category_ids.includes(categoryId)
+          ? prev.category_ids.filter(id => id !== categoryId)
+          : [...prev.category_ids, categoryId]
+      }));
+    } else if (editingQuote) {
+      setEditingQuote(prev => prev ? {
+        ...prev,
+        category_ids: prev.category_ids.includes(categoryId)
+          ? prev.category_ids.filter(id => id !== categoryId)
+          : [...prev.category_ids, categoryId]
+      } : null);
+    }
+  };
+
+  const handleFilterCategoryToggle = (categoryId: string) => {
+    setSelectedCategories(prev => 
+      prev.includes(categoryId)
+        ? prev.filter(id => id !== categoryId)
+        : [...prev, categoryId]
+    );
+  };
+
   const filteredQuotes = quotes.filter(quote => {
     const matchesSearch = quote.text.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === '' || quote.category_id === selectedCategory;
+    const matchesCategory = selectedCategories.length === 0 || 
+      selectedCategories.some(catId => quote.category_ids.includes(catId));
     const matchesLanguage = selectedLanguage === '' || quote.language === selectedLanguage;
     
     return matchesSearch && matchesCategory && matchesLanguage;
@@ -232,31 +274,38 @@ const QuotesList: React.FC = () => {
             />
           </div>
           <div className="flex flex-col sm:flex-row gap-4">
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">All Categories</option>
-            {categories.map(category => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
+            {/* Category Filter with Checkboxes */}
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Filter by Categories
+              </label>
+              <div className="border border-slate-300 rounded-lg p-3 max-h-40 overflow-y-auto bg-white">
+                {categories.map(category => (
+                  <label key={category.id} className="flex items-center space-x-2 py-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedCategories.includes(category.id)}
+                      onChange={() => handleFilterCategoryToggle(category.id)}
+                      className="text-blue-600 focus:ring-blue-500 rounded"
+                    />
+                    <span className="text-sm text-slate-700">{category.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
 
-          <select
-            value={selectedLanguage}
-            onChange={(e) => setSelectedLanguage(e.target.value)}
-            className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">All Languages</option>
-            {uniqueLanguages.map(lang => (
-              <option key={lang} value={lang}>
-                {lang === 'en' ? 'English' : lang.charAt(0).toUpperCase() + lang.slice(1)}
-              </option>
-            ))}
-          </select>
+            <select
+              value={selectedLanguage}
+              onChange={(e) => setSelectedLanguage(e.target.value)}
+              className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">All Languages</option>
+              {uniqueLanguages.map(lang => (
+                <option key={lang} value={lang}>
+                  {lang === 'en' ? 'English' : lang.charAt(0).toUpperCase() + lang.slice(1)}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </div>
@@ -276,80 +325,84 @@ const QuotesList: React.FC = () => {
               <div className="space-y-4">
                 {/* Header */}
                 <div className="flex items-start justify-between">
-                <div className="flex-1">
+                  <div className="flex-1">
                     <div className="flex flex-wrap items-center gap-2 mb-3">
-                    <Quote className="w-4 h-4 text-blue-600" />
-                    <span className="text-sm font-medium text-blue-600">
-                      {quote.categories?.name}
-                    </span>
-                    <span className="text-slate-300">•</span>
-                    <Languages className="w-4 h-4 text-slate-400" />
-                    <span className="text-sm text-slate-500">
-                      {quote.language === 'en' ? 'English' : quote.language}
-                    </span>
+                      <Quote className="w-4 h-4 text-blue-600" />
+                      <div className="flex flex-wrap gap-1">
+                        {quote.categories.map(category => (
+                          <span key={category.id} className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full">
+                            {category.name}
+                          </span>
+                        ))}
+                      </div>
+                      <span className="text-slate-300">•</span>
+                      <Languages className="w-4 h-4 text-slate-400" />
+                      <span className="text-sm text-slate-500">
+                        {quote.language === 'en' ? 'English' : quote.language}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => copyToClipboard(quote.text, 'Quote')}
+                      className="p-2 text-slate-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50"
+                      title="Copy quote"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setSelectedQuote(quote)}
+                      className="p-2 text-slate-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50"
+                      title="View details"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setEditingQuote(quote)}
+                      className="p-2 text-slate-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50"
+                      title="Edit quote"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteQuote(quote.id)}
+                      className="p-2 text-slate-400 hover:text-red-600 transition-colors rounded-lg hover:bg-red-50"
+                      title="Delete quote"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
-                
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => copyToClipboard(quote.text, 'Quote')}
-                    className="p-2 text-slate-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50"
-                    title="Copy quote"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setSelectedQuote(quote)}
-                    className="p-2 text-slate-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50"
-                    title="View details"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setEditingQuote(quote)}
-                    className="p-2 text-slate-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50"
-                    title="Edit quote"
-                  >
-                    <Edit3 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteQuote(quote.id)}
-                    className="p-2 text-slate-400 hover:text-red-600 transition-colors rounded-lg hover:bg-red-50"
-                    title="Delete quote"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
 
-              {/* Quote Content */}
-              <div>
-                <blockquote className="text-slate-800 text-base sm:text-lg leading-relaxed border-l-4 border-blue-200 pl-4 italic">
-                  "{expandedCards.has(quote.id) ? quote.text : truncateText(quote.text)}"
+                {/* Quote Content */}
+                <div>
+                  <blockquote className="text-slate-800 text-base sm:text-lg leading-relaxed border-l-4 border-blue-200 pl-4 italic">
+                    "{expandedCards.has(quote.id) ? quote.text : truncateText(quote.text)}"
                   </blockquote>
-                
-                {quote.text.length > 150 && (
-                  <button
-                    onClick={() => toggleCardExpansion(quote.id)}
-                    className="mt-2 text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center space-x-1"
-                  >
-                    <span>{expandedCards.has(quote.id) ? 'Show less' : 'Show more'}</span>
-                    {expandedCards.has(quote.id) ? (
-                      <ChevronUp className="w-4 h-4" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4" />
-                    )}
-                  </button>
-                )}
-              </div>
+                  
+                  {quote.text.length > 150 && (
+                    <button
+                      onClick={() => toggleCardExpansion(quote.id)}
+                      className="mt-2 text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center space-x-1"
+                    >
+                      <span>{expandedCards.has(quote.id) ? 'Show less' : 'Show more'}</span>
+                      {expandedCards.has(quote.id) ? (
+                        <ChevronUp className="w-4 h-4" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4" />
+                      )}
+                    </button>
+                  )}
+                </div>
 
-              {/* Footer */}
-              <div className="pt-3 border-t border-slate-100">
+                {/* Footer */}
+                <div className="pt-3 border-t border-slate-100">
                   <div className="flex items-center text-sm text-slate-500">
                     <Calendar className="w-4 h-4 mr-1" />
                     {new Date(quote.created_at).toLocaleDateString()}
                   </div>
-              </div>
+                </div>
               </div>
             </motion.div>
           ))}
@@ -360,7 +413,7 @@ const QuotesList: React.FC = () => {
             <Quote className="w-16 h-16 text-slate-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-slate-900 mb-2">No quotes found</h3>
             <p className="text-slate-600">
-              {searchTerm || selectedCategory || selectedLanguage
+              {searchTerm || selectedCategories.length > 0 || selectedLanguage
                 ? 'Try adjusting your filters'
                 : 'Start by adding your first quote'
               }
@@ -377,12 +430,14 @@ const QuotesList: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            onClick={() => setSelectedQuote(null)}
           >
             <motion.div
               className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-bold text-slate-900">Quote Details</h3>
@@ -394,16 +449,26 @@ const QuotesList: React.FC = () => {
                   >
                     <Copy className="w-4 h-4" />
                   </button>
+                  <button
+                    onClick={() => setSelectedQuote(null)}
+                    className="p-2 text-slate-400 hover:text-slate-600 transition-colors rounded-lg"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
 
               <div className="space-y-6">
                 <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center space-x-2 bg-blue-50 px-3 py-1 rounded-full">
-                    <Quote className="w-4 h-4 text-blue-600" />
-                    <span className="text-sm font-medium text-blue-600">
-                      {selectedQuote.categories?.name}
-                    </span>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedQuote.categories.map(category => (
+                      <div key={category.id} className="flex items-center space-x-2 bg-blue-50 px-3 py-1 rounded-full">
+                        <Quote className="w-4 h-4 text-blue-600" />
+                        <span className="text-sm font-medium text-blue-600">
+                          {category.name}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                   <div className="flex items-center space-x-2 bg-slate-100 px-3 py-1 rounded-full">
                     <Languages className="w-4 h-4 text-slate-600" />
@@ -445,14 +510,24 @@ const QuotesList: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            onClick={() => setShowAddForm(false)}
           >
             <motion.div
-              className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto"
+              className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-xl font-bold text-slate-900 mb-6">Add New Quote</h3>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-slate-900">Add New Quote</h3>
+                <button
+                  onClick={() => setShowAddForm(false)}
+                  className="p-2 text-slate-400 hover:text-slate-600 transition-colors rounded-lg"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
               
               <form onSubmit={handleAddQuote} className="space-y-4">
                 <div>
@@ -471,21 +546,24 @@ const QuotesList: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Category *
+                    Categories * (Select at least one)
                   </label>
-                  <select
-                    value={newQuote.category_id}
-                    onChange={(e) => setNewQuote({ ...newQuote, category_id: e.target.value })}
-                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  >
-                    <option value="">Select a category</option>
+                  <div className="border border-slate-300 rounded-lg p-3 max-h-40 overflow-y-auto bg-white">
                     {categories.map(category => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
+                      <label key={category.id} className="flex items-center space-x-2 py-2">
+                        <input
+                          type="checkbox"
+                          checked={newQuote.category_ids.includes(category.id)}
+                          onChange={() => handleCategoryToggle(category.id, true)}
+                          className="text-blue-600 focus:ring-blue-500 rounded"
+                        />
+                        <span className="text-sm text-slate-700">{category.name}</span>
+                      </label>
                     ))}
-                  </select>
+                  </div>
+                  {newQuote.category_ids.length === 0 && (
+                    <p className="text-red-500 text-sm mt-1">Please select at least one category</p>
+                  )}
                 </div>
 
                 <div>
@@ -501,10 +579,12 @@ const QuotesList: React.FC = () => {
                     <option value="es">Spanish</option>
                     <option value="fr">French</option>
                     <option value="de">German</option>
-                    <option value="hi">Hindi</option>
+                    <option value="it">Italian</option>
+                    <option value="pt">Portuguese</option>
+                    <option value="ru">Russian</option>
                     <option value="zh">Chinese</option>
                     <option value="ja">Japanese</option>
-                    <option value="ar">Arabic</option>
+                    <option value="ko">Korean</option>
                   </select>
                 </div>
 
@@ -537,14 +617,24 @@ const QuotesList: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            onClick={() => setEditingQuote(null)}
           >
             <motion.div
-              className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto"
+              className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-xl font-bold text-slate-900 mb-6">Edit Quote</h3>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-slate-900">Edit Quote</h3>
+                <button
+                  onClick={() => setEditingQuote(null)}
+                  className="p-2 text-slate-400 hover:text-slate-600 transition-colors rounded-lg"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
               
               <form onSubmit={handleUpdateQuote} className="space-y-4">
                 <div>
@@ -562,20 +652,24 @@ const QuotesList: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Category *
+                    Categories * (Select at least one)
                   </label>
-                  <select
-                    value={editingQuote.category_id}
-                    onChange={(e) => setEditingQuote({ ...editingQuote, category_id: e.target.value })}
-                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  >
+                  <div className="border border-slate-300 rounded-lg p-3 max-h-40 overflow-y-auto bg-white">
                     {categories.map(category => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
+                      <label key={category.id} className="flex items-center space-x-2 py-2">
+                        <input
+                          type="checkbox"
+                          checked={editingQuote.category_ids.includes(category.id)}
+                          onChange={() => handleCategoryToggle(category.id, false)}
+                          className="text-blue-600 focus:ring-blue-500 rounded"
+                        />
+                        <span className="text-sm text-slate-700">{category.name}</span>
+                      </label>
                     ))}
-                  </select>
+                  </div>
+                  {editingQuote.category_ids.length === 0 && (
+                    <p className="text-red-500 text-sm mt-1">Please select at least one category</p>
+                  )}
                 </div>
 
                 <div>
@@ -591,10 +685,12 @@ const QuotesList: React.FC = () => {
                     <option value="es">Spanish</option>
                     <option value="fr">French</option>
                     <option value="de">German</option>
-                    <option value="hi">Hindi</option>
+                    <option value="it">Italian</option>
+                    <option value="pt">Portuguese</option>
+                    <option value="ru">Russian</option>
                     <option value="zh">Chinese</option>
                     <option value="ja">Japanese</option>
-                    <option value="ar">Arabic</option>
+                    <option value="ko">Korean</option>
                   </select>
                 </div>
 
@@ -623,3 +719,4 @@ const QuotesList: React.FC = () => {
 };
 
 export default QuotesList;
+

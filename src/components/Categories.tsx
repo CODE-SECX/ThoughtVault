@@ -40,16 +40,17 @@ const Categories: React.FC = () => {
       // Get counts for each category
       const categoriesWithCounts = await Promise.all(
         (categoriesData || []).map(async (category) => {
-          const [{ count: quotesCount }, { count: understandingCount }] = await Promise.all([
-            supabase
-              .from('quotes')
-              .select('*', { count: 'exact', head: true })
-              .eq('category_id', category.id),
-            supabase
-              .from('understanding')
-              .select('*', { count: 'exact', head: true })
-              .eq('category_id', category.id)
-          ]);
+          // Count quotes that contain this category ID in their category_ids array
+          const { count: quotesCount } = await supabase
+            .from('quotes')
+            .select('*', { count: 'exact', head: true })
+            .contains('category_ids', [category.id]);
+
+          // Count understanding entries that contain this category ID in their category_ids array
+          const { count: understandingCount } = await supabase
+            .from('understanding')
+            .select('*', { count: 'exact', head: true })
+            .contains('category_ids', [category.id]);
 
           return {
             ...category,
