@@ -1,24 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  FileText,
-  Search,
-  BookOpen,
-  Quote,
-  Tag,
-  Languages,
-  Grid,
-  Eye,
-  ChevronRight,
-  BarChart3,
-  X,
-  Copy,
-  Calendar,
-  Clock
+  FileText, Grid, Quote, BookOpen, Tag, BarChart3, 
+  Search, Eye, Copy, X, ChevronRight, Languages, Trash2,
+  Calendar, Clock
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import RichTextDisplay from './RichTextDisplay';
 
 type ContentItem = {
@@ -240,6 +229,46 @@ const ContentIndex: React.FC = () => {
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     }
   });
+
+  const deleteCategory = async (categoryName: string) => {
+    try {
+      // First, get the category ID
+      const { data: categoryData, error: fetchError } = await supabase
+        .from('categories')
+        .select('id')
+        .eq('name', categoryName)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching category:', fetchError);
+        toast.error('Failed to find category');
+        return;
+      }
+
+      // Delete the category
+      const { error: deleteError } = await supabase
+        .from('categories')
+        .delete()
+        .eq('id', categoryData.id);
+
+      if (deleteError) {
+        console.error('Error deleting category:', deleteError);
+        toast.error('Failed to delete category');
+        return;
+      }
+
+      toast.success(`Category "${categoryName}" deleted successfully`);
+      
+      // Remove from selected categories if it was selected
+      setSelectedCategories(prev => prev.filter(cat => cat !== categoryName));
+      
+      // Reload the content index to refresh stats
+      loadContentIndex();
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      toast.error('Failed to delete category');
+    }
+  };
 
   const CategoryRow: React.FC<{
     selectedCategories: string[];
@@ -799,16 +828,18 @@ const ContentIndex: React.FC = () => {
               {Object.entries(stats.byCategory).map(([category, count]) => (
                 <motion.div
                   key={category}
-                  className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-pointer"
+                  className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  onClick={() => {
-                    setSelectedCategories([category]);
-                    setViewMode('overview');
-                  }}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
+                    <div 
+                      className="flex items-center space-x-3 flex-1 cursor-pointer"
+                      onClick={() => {
+                        setSelectedCategories([category]);
+                        setViewMode('overview');
+                      }}
+                    >
                       <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
                         <Tag className="w-5 h-5 text-green-600" />
                       </div>
@@ -817,7 +848,21 @@ const ContentIndex: React.FC = () => {
                         <p className="text-sm text-slate-500">{count} items</p>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm(`Are you sure you want to delete the category "${category}"? This action cannot be undone.`)) {
+                            deleteCategory(category);
+                          }
+                        }}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete category"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                    </div>
                   </div>
                 </motion.div>
               ))}
