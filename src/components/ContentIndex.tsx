@@ -60,7 +60,7 @@ const ContentIndex: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('overview');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
   const [sortBy, setSortBy] = useState<'date' | 'title' | 'type'>('date');
   const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
@@ -222,7 +222,7 @@ const ContentIndex: React.FC = () => {
         !item.content.toLowerCase().includes(searchTerm.toLowerCase())) {
       return false;
     }
-    if (selectedCategory && !item.categories.includes(selectedCategory)) {
+    if (selectedCategories.length > 0 && !selectedCategories.some(cat => item.categories.includes(cat))) {
       return false;
     }
     if (selectedLanguage && item.language !== selectedLanguage) {
@@ -240,6 +240,71 @@ const ContentIndex: React.FC = () => {
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     }
   });
+
+  const CategoryRow: React.FC<{
+    selectedCategories: string[];
+    onCategoriesChange: (categories: string[]) => void;
+    categories: { [key: string]: number };
+    colorScheme?: 'purple' | 'blue';
+  }> = ({ selectedCategories, onCategoriesChange, categories, colorScheme = 'purple' }) => {
+    const colorClasses = {
+      purple: {
+        selected: 'bg-purple-600 text-white border-purple-600',
+        unselected: 'bg-white text-purple-600 border-purple-200 hover:bg-purple-50',
+        all: 'bg-slate-600 text-white border-slate-600'
+      },
+      blue: {
+        selected: 'bg-blue-600 text-white border-blue-600',
+        unselected: 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50',
+        all: 'bg-slate-600 text-white border-slate-600'
+      }
+    };
+
+    const toggleCategory = (category: string) => {
+      if (selectedCategories.includes(category)) {
+        onCategoriesChange(selectedCategories.filter(c => c !== category));
+      } else {
+        onCategoriesChange([...selectedCategories, category]);
+      }
+    };
+
+    const clearAllCategories = () => {
+      onCategoriesChange([]);
+    };
+
+    return (
+      <div className="flex flex-wrap gap-2 items-center">
+        <span className="text-sm font-medium text-slate-700 mr-2">Categories:</span>
+        
+        {/* All Categories button */}
+        <button
+          onClick={clearAllCategories}
+          className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+            selectedCategories.length === 0 
+              ? colorClasses[colorScheme].all
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          All ({Object.values(categories).reduce((sum, count) => sum + count, 0)})
+        </button>
+
+        {/* Individual category buttons */}
+        {Object.entries(categories).map(([category, count]) => (
+          <button
+            key={category}
+            onClick={() => toggleCategory(category)}
+            className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+              selectedCategories.includes(category)
+                ? colorClasses[colorScheme].selected
+                : colorClasses[colorScheme].unselected
+            }`}
+          >
+            {category} ({count})
+          </button>
+        ))}
+      </div>
+    );
+  };
 
   const ViewModeButton: React.FC<{
     mode: ViewMode;
@@ -395,8 +460,9 @@ const ContentIndex: React.FC = () => {
             </div>
 
             {/* Search and Filters */}
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-4">
+              {/* Search, Language, and Sort Row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="relative">
                   <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
                   <input
@@ -407,16 +473,6 @@ const ContentIndex: React.FC = () => {
                     className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   />
                 </div>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                >
-                  <option value="">All Categories</option>
-                  {Object.keys(stats.byCategory).map(category => (
-                    <option key={category} value={category}>{category}</option>
-                  ))}
-                </select>
                 <select
                   value={selectedLanguage}
                   onChange={(e) => setSelectedLanguage(e.target.value)}
@@ -439,6 +495,14 @@ const ContentIndex: React.FC = () => {
                   <option value="type">Sort by Type</option>
                 </select>
               </div>
+              
+              {/* Categories Row */}
+              <CategoryRow
+                selectedCategories={selectedCategories}
+                onCategoriesChange={setSelectedCategories}
+                categories={stats.byCategory}
+                colorScheme="purple"
+              />
             </div>
 
             {/* Content List */}
@@ -519,19 +583,59 @@ const ContentIndex: React.FC = () => {
             className="space-y-6"
           >
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-slate-900 flex items-center">
-                <Quote className="w-6 h-6 mr-2 text-blue-600" />
-                All Quotes ({stats.byType.quotes})
-              </h2>
-              <Link
-                to="/quotes"
-                className="text-blue-600 hover:text-blue-700 font-medium"
-              >
-                View in Quotes Section →
-              </Link>
+              <h2 className="text-2xl font-bold text-slate-900">Quotes Collection</h2>
+              <div className="text-sm text-slate-500">
+                {content.filter(item => item.type === 'quote').length} quotes
+              </div>
             </div>
-            <div className="space-y-4">
-              {content.filter(item => item.type === 'quote').map((item) => (
+
+            {/* Search and Filters for Quotes */}
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-4">
+              {/* Search, Language, and Sort Row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search quotes..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                </div>
+                <select
+                  value={selectedLanguage}
+                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value="">All Languages</option>
+                  {Object.keys(stats.byLanguage).map(lang => (
+                    <option key={lang} value={lang}>
+                      {lang === 'en' ? 'English' : lang.charAt(0).toUpperCase() + lang.slice(1)}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as 'date' | 'title' | 'type')}
+                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value="date">Sort by Date</option>
+                  <option value="title">Sort by Title</option>
+                </select>
+              </div>
+              
+              {/* Categories Row */}
+              <CategoryRow
+                selectedCategories={selectedCategories}
+                onCategoriesChange={setSelectedCategories}
+                categories={stats.byCategory}
+                colorScheme="blue"
+              />
+            </div>
+            
+            <div className="grid gap-4">
+              {filteredContent.filter(item => item.type === 'quote').map((item) => (
                 <motion.div
                   key={item.id}
                   className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-pointer"
@@ -574,19 +678,59 @@ const ContentIndex: React.FC = () => {
             className="space-y-6"
           >
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-slate-900 flex items-center">
-                <BookOpen className="w-6 h-6 mr-2 text-purple-600" />
-                All Understanding ({stats.byType.understanding})
-              </h2>
-              <Link
-                to="/understanding"
-                className="text-purple-600 hover:text-purple-700 font-medium"
-              >
-                View in Understanding Section →
-              </Link>
+              <h2 className="text-2xl font-bold text-slate-900">Understanding Entries</h2>
+              <div className="text-sm text-slate-500">
+                {content.filter(item => item.type === 'understanding').length} entries
+              </div>
             </div>
-            <div className="space-y-4">
-              {content.filter(item => item.type === 'understanding').map((item) => (
+
+            {/* Search and Filters for Understanding */}
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-4">
+              {/* Search, Language, and Sort Row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search understanding..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                </div>
+                <select
+                  value={selectedLanguage}
+                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value="">All Languages</option>
+                  {Object.keys(stats.byLanguage).map(lang => (
+                    <option key={lang} value={lang}>
+                      {lang === 'en' ? 'English' : lang.charAt(0).toUpperCase() + lang.slice(1)}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as 'date' | 'title' | 'type')}
+                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value="date">Sort by Date</option>
+                  <option value="title">Sort by Title</option>
+                </select>
+              </div>
+              
+              {/* Categories Row */}
+              <CategoryRow
+                selectedCategories={selectedCategories}
+                onCategoriesChange={setSelectedCategories}
+                categories={stats.byCategory}
+                colorScheme="purple"
+              />
+            </div>
+            
+            <div className="grid gap-4">
+              {filteredContent.filter(item => item.type === 'understanding').map((item) => (
                 <motion.div
                   key={item.id}
                   className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-pointer"
@@ -659,7 +803,7 @@ const ContentIndex: React.FC = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   onClick={() => {
-                    setSelectedCategory(category);
+                    setSelectedCategories([category]);
                     setViewMode('overview');
                   }}
                 >
