@@ -20,6 +20,8 @@ import {
 import { supabase } from '../lib/supabase';
 import { Database } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import RichTextEditor from './RichTextEditor';
+import RichTextDisplay from './RichTextDisplay';
 
 type UnderstandingWithCategories = Database['public']['Tables']['understanding']['Row'] & {
   categories: Database['public']['Tables']['categories']['Row'][];
@@ -563,9 +565,10 @@ const UnderstandingList: React.FC = () => {
                 <div>
                   <h2 className="text-2xl font-bold text-slate-900 mb-4">{selectedEntry.title}</h2>
                   <div className="prose prose-slate max-w-none">
-                    <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
-                      {selectedEntry.description}
-                    </p>
+                    <RichTextDisplay 
+                      content={selectedEntry.description}
+                      className="text-slate-700 leading-relaxed"
+                    />
                   </div>
                 </div>
 
@@ -575,9 +578,12 @@ const UnderstandingList: React.FC = () => {
                       <LinkIcon className="w-4 h-4 mr-2" />
                       Real-life Connection
                     </h4>
-                    <p className="text-blue-800 leading-relaxed whitespace-pre-wrap">
-                      {selectedEntry.real_life_connection}
-                    </p>
+                    <div className="text-blue-800 leading-relaxed">
+                      <RichTextDisplay 
+                        content={selectedEntry.real_life_connection}
+                        className="text-blue-800"
+                      />
+                    </div>
                   </div>
                 )}
 
@@ -659,13 +665,10 @@ const UnderstandingList: React.FC = () => {
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Description *
                   </label>
-                  <textarea
+                  <RichTextEditor
                     value={newEntry.description}
-                    onChange={(e) => setNewEntry({ ...newEntry, description: e.target.value })}
-                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    rows={6}
+                    onChange={(value) => setNewEntry({ ...newEntry, description: value })}
                     placeholder="Enter your understanding..."
-                    required
                   />
                 </div>
 
@@ -695,11 +698,9 @@ const UnderstandingList: React.FC = () => {
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Real-life Connection
                   </label>
-                  <textarea
+                  <RichTextEditor
                     value={newEntry.real_life_connection}
-                    onChange={(e) => setNewEntry({ ...newEntry, real_life_connection: e.target.value })}
-                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    rows={3}
+                    onChange={(value) => setNewEntry({ ...newEntry, real_life_connection: value })}
                     placeholder="How does this relate to real life?"
                   />
                 </div>
@@ -833,12 +834,9 @@ const UnderstandingList: React.FC = () => {
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Description *
                   </label>
-                  <textarea
+                  <RichTextEditor
                     value={editingEntry.description}
-                    onChange={(e) => setEditingEntry({ ...editingEntry, description: e.target.value })}
-                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    rows={6}
-                    required
+                    onChange={(value) => setEditingEntry({ ...editingEntry, description: value })}
                   />
                 </div>
 
@@ -868,11 +866,9 @@ const UnderstandingList: React.FC = () => {
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Real-life Connection
                   </label>
-                  <textarea
+                  <RichTextEditor
                     value={editingEntry.real_life_connection || ''}
-                    onChange={(e) => setEditingEntry({ ...editingEntry, real_life_connection: e.target.value })}
-                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    rows={3}
+                    onChange={(value) => setEditingEntry({ ...editingEntry, real_life_connection: value })}
                   />
                 </div>
 
