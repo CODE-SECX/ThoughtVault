@@ -743,6 +743,8 @@ const UnderstandingList: React.FC = () => {
                     className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   >
                     <option value="en">English</option>
+                    <option value="hi">Hindi</option>
+                    <option value="sa">Sanskrit</option>
                     <option value="es">Spanish</option>
                     <option value="fr">French</option>
                     <option value="de">German</option>
@@ -908,6 +910,8 @@ const UnderstandingList: React.FC = () => {
                     className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   >
                     <option value="en">English</option>
+                    <option value="hi">Hindi</option>
+                    <option value="sa">Sanskrit</option>
                     <option value="es">Spanish</option>
                     <option value="fr">French</option>
                     <option value="de">German</option>

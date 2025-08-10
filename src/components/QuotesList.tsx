@@ -576,6 +576,8 @@ const QuotesList: React.FC = () => {
                     className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="en">English</option>
+                    <option value="hi">Hindi</option>
+                    <option value="sa">Sanskrit</option>
                     <option value="es">Spanish</option>
                     <option value="fr">French</option>
                     <option value="de">German</option>
@@ -682,6 +684,8 @@ const QuotesList: React.FC = () => {
                     className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="en">English</option>
+                    <option value="hi">Hindi</option>
+                    <option value="sa">Sanskrit</option>
                     <option value="es">Spanish</option>
                     <option value="fr">French</option>
                     <option value="de">German</option>
