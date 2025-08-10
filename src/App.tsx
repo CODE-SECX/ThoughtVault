@@ -7,6 +7,7 @@ import QuotesList from './components/QuotesList';
 import UnderstandingList from './components/UnderstandingList';
 import Categories from './components/Categories';
 import Search from './components/Search';
+import ContentIndex from './components/ContentIndex';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
             <Route path="/understanding" element={<UnderstandingList />} />
             <Route path="/categories" element={<Categories />} />
             <Route path="/search" element={<Search />} />
+            <Route path="/index" element={<ContentIndex />} />
           </Routes>
         </Layout>
         

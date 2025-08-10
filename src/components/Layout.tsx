@@ -6,6 +6,7 @@ import {
   BookOpen, 
   FolderOpen, 
   Search,
+  FileText,
   User,
   LogOut,
   Settings,
@@ -28,6 +29,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { path: '/quotes', icon: Quote, label: 'Quotes' },
     { path: '/understanding', icon: BookOpen, label: 'Understanding' },
     { path: '/categories', icon: FolderOpen, label: 'Categories' },
+    { path: '/index', icon: FileText, label: 'Content Index' },
     { path: '/search', icon: Search, label: 'Search' },
   ];
 
