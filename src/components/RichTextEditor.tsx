@@ -44,8 +44,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
         formats={formats}
         placeholder={placeholder}
         style={{
-          height: '200px',
-          marginBottom: '50px'
+          marginBottom: '20px'
         }}
       />
       <style>{`
