@@ -3,10 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, 
   Search, 
-  Filter, 
   Quote,
   Calendar,
-  Tag,
   Languages,
   Trash2,
   Edit3,
@@ -19,6 +17,8 @@ import {
 import { supabase } from '../lib/supabase';
 import { Database } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import RichTextEditor from './RichTextEditor';
+import RichTextDisplay from './RichTextDisplay';
 
 type QuoteWithCategories = Database['public']['Tables']['quotes']['Row'] & {
   categories: Database['public']['Tables']['categories']['Row'][];
@@ -378,7 +378,17 @@ const QuotesList: React.FC = () => {
                 {/* Quote Content */}
                 <div>
                   <blockquote className="text-slate-800 text-base sm:text-lg leading-relaxed border-l-4 border-blue-200 pl-4 italic">
-                    "{expandedCards.has(quote.id) ? quote.text : truncateText(quote.text)}"
+                    "{expandedCards.has(quote.id) ? (
+                      <RichTextDisplay 
+                        content={quote.text} 
+                        className="inline"
+                      />
+                    ) : (
+                      <RichTextDisplay 
+                        content={truncateText(quote.text)} 
+                        className="inline"
+                      />
+                    )}"
                   </blockquote>
                   
                   {quote.text.length > 150 && (
@@ -479,7 +489,10 @@ const QuotesList: React.FC = () => {
                 </div>
 
                 <blockquote className="text-slate-800 text-lg leading-relaxed border-l-4 border-blue-200 pl-6 italic bg-blue-50 p-6 rounded-r-lg">
-                  "{selectedQuote.text}"
+                  "<RichTextDisplay 
+                    content={selectedQuote.text} 
+                    className="inline"
+                  />"
                 </blockquote>
 
                 <div className="flex items-center justify-between text-sm text-slate-500 pt-4 border-t border-slate-200">
@@ -534,13 +547,9 @@ const QuotesList: React.FC = () => {
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Quote Text *
                   </label>
-                  <textarea
+                  <RichTextEditor
                     value={newQuote.text}
-                    onChange={(e) => setNewQuote({ ...newQuote, text: e.target.value })}
-                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    rows={4}
-                    placeholder="Enter the quote..."
-                    required
+                    onChange={(value) => setNewQuote({ ...newQuote, text: value })}
                   />
                 </div>
 
@@ -643,12 +652,9 @@ const QuotesList: React.FC = () => {
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Quote Text *
                   </label>
-                  <textarea
+                  <RichTextEditor
                     value={editingQuote.text}
-                    onChange={(e) => setEditingQuote({ ...editingQuote, text: e.target.value })}
-                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    rows={4}
-                    required
+                    onChange={(value) => setEditingQuote({ ...editingQuote, text: value })}
                   />
                 </div>
 
