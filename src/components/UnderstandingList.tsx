@@ -425,10 +425,18 @@ const UnderstandingList: React.FC = () => {
                     {entry.title}
                   </h3>
                   
-                  <div className="prose prose-slate max-w-none mb-4">
-                    <p className="text-slate-700 leading-relaxed">
-                      {expandedCards.has(entry.id) ? entry.description : truncateText(entry.description)}
-                    </p>
+                  <div className="mb-4">
+                    {expandedCards.has(entry.id) ? (
+                      <RichTextDisplay 
+                        content={entry.description} 
+                        className="text-slate-700 leading-relaxed"
+                      />
+                    ) : (
+                      <RichTextDisplay 
+                        content={truncateText(entry.description)} 
+                        className="text-slate-700 leading-relaxed"
+                      />
+                    )}
                   </div>
 
                   {entry.description.length > 200 && (
@@ -451,12 +459,19 @@ const UnderstandingList: React.FC = () => {
                         <LinkIcon className="w-4 h-4 mr-2" />
                         Real-life Connection
                       </h4>
-                      <p className="text-blue-800 text-sm">
-                        {expandedCards.has(entry.id) 
-                          ? entry.real_life_connection 
-                          : truncateText(entry.real_life_connection, 100)
-                        }
-                      </p>
+                      <div className="text-blue-800 text-sm">
+                        {expandedCards.has(entry.id) ? (
+                          <RichTextDisplay 
+                            content={entry.real_life_connection} 
+                            className="text-blue-800 text-sm"
+                          />
+                        ) : (
+                          <RichTextDisplay 
+                            content={truncateText(entry.real_life_connection, 100)} 
+                            className="text-blue-800 text-sm"
+                          />
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
