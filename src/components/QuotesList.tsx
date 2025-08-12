@@ -8,7 +8,6 @@ import {
   Languages,
   Trash2,
   Edit3,
-  Eye,
   ChevronDown,
   ChevronUp,
   X,
@@ -316,11 +315,12 @@ const QuotesList: React.FC = () => {
           {filteredQuotes.map((quote) => (
             <motion.div
               key={quote.id}
-              className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow"
+              className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-pointer"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               layout
+              onClick={() => setSelectedQuote(quote)}
             >
               <div className="space-y-4">
                 {/* Header */}
@@ -345,28 +345,30 @@ const QuotesList: React.FC = () => {
                   
                   <div className="flex space-x-2">
                     <button
-                      onClick={() => copyToClipboard(quote.text, 'Quote')}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyToClipboard(quote.text, 'Quote');
+                      }}
                       className="p-2 text-slate-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50"
                       title="Copy quote"
                     >
                       <Copy className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => setSelectedQuote(quote)}
-                      className="p-2 text-slate-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50"
-                      title="View details"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setEditingQuote(quote)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingQuote(quote);
+                      }}
                       className="p-2 text-slate-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50"
                       title="Edit quote"
                     >
                       <Edit3 className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => handleDeleteQuote(quote.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteQuote(quote.id);
+                      }}
                       className="p-2 text-slate-400 hover:text-red-600 transition-colors rounded-lg hover:bg-red-50"
                       title="Delete quote"
                     >

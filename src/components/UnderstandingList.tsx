@@ -9,9 +9,7 @@ import {
   FileText,
   Edit3,
   Trash2,
-  Clock,
   Link as LinkIcon,
-  Eye,
   ChevronDown,
   ChevronUp,
   X,
@@ -352,11 +350,12 @@ const UnderstandingList: React.FC = () => {
           {filteredEntries.map((entry) => (
             <motion.div
               key={entry.id}
-              className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow"
+              className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-pointer"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               layout
+              onClick={() => setSelectedEntry(entry)}
             >
               <div className="space-y-4">
                 {/* Header */}
@@ -389,28 +388,30 @@ const UnderstandingList: React.FC = () => {
                   
                   <div className="flex space-x-2">
                     <button
-                      onClick={() => copyToClipboard(entry.description, 'Understanding')}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyToClipboard(entry.description, 'Understanding');
+                      }}
                       className="p-2 text-slate-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50"
                       title="Copy content"
                     >
                       <Copy className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => setSelectedEntry(entry)}
-                      className="p-2 text-slate-400 hover:text-purple-600 transition-colors rounded-lg hover:bg-purple-50"
-                      title="View details"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setEditingEntry(entry)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingEntry(entry);
+                      }}
                       className="p-2 text-slate-400 hover:text-purple-600 transition-colors rounded-lg hover:bg-purple-50"
                       title="Edit entry"
                     >
                       <Edit3 className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => handleDeleteEntry(entry.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteEntry(entry.id);
+                      }}
                       className="p-2 text-slate-400 hover:text-red-600 transition-colors rounded-lg hover:bg-red-50"
                       title="Delete entry"
                     >
