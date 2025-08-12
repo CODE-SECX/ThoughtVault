@@ -12,12 +12,12 @@ import {
   Link as LinkIcon,
   ChevronDown,
   ChevronUp,
-  X,
-  Copy
+  X
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Database } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import SmartCopyButton from './SmartCopyButton';
 import RichTextEditor from './RichTextEditor';
 import RichTextDisplay from './RichTextDisplay';
 
@@ -241,15 +241,7 @@ const UnderstandingList: React.FC = () => {
 
   const uniqueLanguages = [...new Set(understanding.map(e => e.language))];
 
-  const copyToClipboard = async (text: string, type: string = 'content') => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success(`${type} copied to clipboard!`);
-    } catch (error) {
-      console.error('Failed to copy to clipboard:', error);
-      toast.error('Failed to copy to clipboard');
-    }
-  };
+
 
   if (loading) {
     return (
@@ -387,16 +379,13 @@ const UnderstandingList: React.FC = () => {
                   </div>
                   
                   <div className="flex space-x-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        copyToClipboard(entry.description, 'Understanding');
-                      }}
-                      className="p-2 text-slate-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50"
-                      title="Copy content"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <SmartCopyButton
+                        content={entry.description}
+                        type="Understanding"
+                        className="text-slate-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50"
+                      />
+                    </div>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -537,13 +526,11 @@ const UnderstandingList: React.FC = () => {
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-bold text-slate-900">Understanding Details</h3>
                 <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => copyToClipboard(selectedEntry.description, 'Understanding')}
-                    className="p-2 text-slate-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50"
-                    title="Copy content"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
+                  <SmartCopyButton
+                    content={selectedEntry.description}
+                    type="Understanding"
+                    className="text-slate-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50"
+                  />
                   <button
                     onClick={() => setSelectedEntry(null)}
                     className="p-2 text-slate-400 hover:text-slate-600 transition-colors rounded-lg"
