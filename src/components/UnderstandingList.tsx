@@ -747,6 +747,7 @@ const UnderstandingList: React.FC = () => {
                   >
                     <option value="en">English</option>
                     <option value="hi">Hindi</option>
+                    <option value="gu">Gujarati</option>
                     <option value="sa">Sanskrit</option>
                     <option value="es">Spanish</option>
                     <option value="fr">French</option>
@@ -914,6 +915,7 @@ const UnderstandingList: React.FC = () => {
                   >
                     <option value="en">English</option>
                     <option value="hi">Hindi</option>
+                    <option value="gu">Gujarati</option>
                     <option value="sa">Sanskrit</option>
                     <option value="es">Spanish</option>
                     <option value="fr">French</option>
