@@ -556,11 +556,11 @@ const ContentIndex: React.FC = () => {
                       </div>
                       <div className="flex-1">
                         <h3 className="font-semibold text-slate-900 mb-1">{item.title}</h3>
-                        <p className="text-sm text-slate-600 mb-2 line-clamp-2">
-                          {item.content.length > 150 
+                        <div className="text-sm text-slate-600 mb-2 line-clamp-2">
+                          <RichTextDisplay content={item.content.length > 150 
                             ? `${item.content.substring(0, 150)}...` 
-                            : item.content}
-                        </p>
+                            : item.content} />
+                        </div>
                         <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                           {item.categories.map(category => (
                             <span key={category} className="bg-slate-100 px-2 py-1 rounded">
@@ -678,7 +678,9 @@ const ContentIndex: React.FC = () => {
                         <Quote className="w-5 h-5 text-blue-600" />
                       </div>
                       <div className="flex-1">
-                        <p className="text-slate-700 italic mb-2">"{item.content}"</p>
+                        <div className="text-slate-700 italic mb-2">
+                          <RichTextDisplay content={item.content} />
+                        </div>
                         <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                           {item.categories.map(category => (
                             <span key={category} className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
@@ -774,11 +776,11 @@ const ContentIndex: React.FC = () => {
                       </div>
                       <div className="flex-1">
                         <h3 className="font-semibold text-slate-900 mb-1">{item.title}</h3>
-                        <p className="text-sm text-slate-600 mb-2 line-clamp-2">
-                          {item.content.length > 150 
+                        <div className="text-sm text-slate-600 mb-2 line-clamp-2">
+                          <RichTextDisplay content={item.content.length > 150 
                             ? `${item.content.substring(0, 150)}...` 
-                            : item.content}
-                        </p>
+                            : item.content} />
+                        </div>
                         <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                           {item.categories.map(category => (
                             <span key={category} className="bg-purple-100 text-purple-800 px-2 py-1 rounded">
@@ -1078,7 +1080,7 @@ const ContentIndex: React.FC = () => {
                   <div className="prose prose-slate max-w-none">
                     {selectedItem.type === 'quote' ? (
                       <blockquote className="text-lg text-slate-700 italic border-l-4 border-blue-500 pl-4 py-2">
-                        "{selectedItem.content}"
+                        <RichTextDisplay content={selectedItem.content} />
                       </blockquote>
                     ) : (
                       <RichTextDisplay 
