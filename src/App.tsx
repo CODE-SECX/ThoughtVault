@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
@@ -8,21 +8,32 @@ import UnderstandingList from './components/UnderstandingList';
 import Categories from './components/Categories';
 import Search from './components/Search';
 import ContentIndex from './components/ContentIndex';
+import PublicQuote from './components/PublicQuote';
+import PublicUnderstanding from './components/PublicUnderstanding';
+
+const LayoutRoute: React.FC = () => (
+  <Layout>
+    <Outlet />
+  </Layout>
+);
 
 function App() {
   return (
     <Router>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-        <Layout>
-          <Routes>
+        <Routes>
+          <Route element={<LayoutRoute />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/quotes" element={<QuotesList />} />
             <Route path="/understanding" element={<UnderstandingList />} />
             <Route path="/categories" element={<Categories />} />
             <Route path="/search" element={<Search />} />
             <Route path="/index" element={<ContentIndex />} />
-          </Routes>
-        </Layout>
+          </Route>
+          {/* Public shareable routes (no Layout wrapper) */}
+          <Route path="/p/quote/:id" element={<PublicQuote />} />
+          <Route path="/p/understanding/:id" element={<PublicUnderstanding />} />
+        </Routes>
         
         <Toaster
           position="top-right"

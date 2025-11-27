@@ -12,7 +12,8 @@ import {
   Link as LinkIcon,
   ChevronDown,
   ChevronUp,
-  X
+  X,
+  Share2
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Database } from '../lib/supabase';
@@ -243,6 +244,17 @@ const UnderstandingList: React.FC = () => {
 
 
 
+  const copyShareLink = async (id: string) => {
+    try {
+      const url = `${window.location.origin}/p/understanding/${id}`;
+      await navigator.clipboard.writeText(url);
+      toast.success('Share link copied!');
+    } catch (error) {
+      console.error('Failed to copy share link:', error);
+      toast.error('Failed to copy share link');
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-8">
@@ -379,6 +391,16 @@ const UnderstandingList: React.FC = () => {
                   </div>
                   
                   <div className="flex space-x-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyShareLink(entry.id);
+                      }}
+                      className="p-2 text-slate-400 hover:text-purple-600 transition-colors rounded-lg hover:bg-purple-50"
+                      title="Copy share link"
+                    >
+                      <Share2 className="w-4 h-4" />
+                    </button>
                     <div onClick={(e) => e.stopPropagation()}>
                       <SmartCopyButton
                         content={entry.description}
@@ -526,6 +548,13 @@ const UnderstandingList: React.FC = () => {
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-bold text-slate-900">Understanding Details</h3>
                 <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => copyShareLink(selectedEntry.id)}
+                    className="p-2 text-slate-400 hover:text-purple-600 transition-colors rounded-lg hover:bg-purple-50"
+                    title="Copy share link"
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </button>
                   <SmartCopyButton
                     content={selectedEntry.description}
                     type="Understanding"
