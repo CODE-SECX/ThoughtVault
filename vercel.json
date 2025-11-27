@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/p/quote/:id", "destination": "/" },
+    { "source": "/p/understanding/:id", "destination": "/" }
+  ]
+}
