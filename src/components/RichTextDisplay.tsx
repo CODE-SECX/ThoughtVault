@@ -12,12 +12,13 @@ const RichTextDisplay: React.FC<RichTextDisplayProps> = ({
 }) => {
   return (
     <div 
-      className={`rich-text-display prose prose-slate max-w-none ${className}`}
+      className={`rich-text-display prose prose-slate max-w-none text-slate-700 leading-relaxed ${className}`}
       dangerouslySetInnerHTML={{ __html: content }}
       style={{
         fontFamily: 'inherit',
-        fontSize: '14px',
-        lineHeight: '1.5'
+        fontSize: '15px',
+        lineHeight: '1.75',
+        letterSpacing: '0.3px'
       }}
     />
   );

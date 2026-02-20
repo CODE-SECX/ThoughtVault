@@ -369,24 +369,24 @@ const ContentIndex: React.FC = () => {
     onClick?: () => void;
   }> = ({ icon, title, value, subtitle, onClick }) => (
     <motion.div
-      className={`bg-white p-4 rounded-lg shadow-sm border border-slate-200 ${
-        onClick ? 'cursor-pointer hover:shadow-md' : ''
-      } transition-shadow`}
-      whileHover={onClick ? { y: -2 } : {}}
+      className={`bg-white rounded-xl shadow-sm border border-slate-200 ${
+        onClick ? 'cursor-pointer hover:shadow-md hover:border-slate-300' : ''
+      } transition-all p-6`}
+      whileHover={onClick ? { y: -4 } : {}}
       onClick={onClick}
     >
       <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+        <div>
+          <p className="text-xs uppercase tracking-widest font-semibold text-slate-500 mb-1">{title}</p>
+          <p className="text-3xl font-bold text-slate-900 mb-1">{value}</p>
+          {subtitle && <p className="text-sm text-slate-500 font-medium">{subtitle}</p>}
+        </div>
+        <div className="flex items-center justify-center">
+          <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
             {icon}
           </div>
-          <div>
-            <p className="text-sm font-medium text-slate-600">{title}</p>
-            <p className="text-xl font-bold text-slate-900">{value}</p>
-            {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
-          </div>
+          {onClick && <ChevronRight className="w-4 h-4 text-slate-400 -ml-2" />}
         </div>
-        {onClick && <ChevronRight className="w-4 h-4 text-slate-400" />}
       </div>
     </motion.div>
   );
@@ -395,10 +395,10 @@ const ContentIndex: React.FC = () => {
     return (
       <div className="p-4 sm:p-6 lg:p-8">
         <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-slate-200 rounded w-1/4"></div>
+          <div className="h-12 bg-slate-200 rounded w-1/3"></div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="h-24 bg-slate-200 rounded"></div>
+              <div key={i} className="h-24 bg-slate-200 rounded-lg"></div>
             ))}
           </div>
         </div>
@@ -409,18 +409,18 @@ const ContentIndex: React.FC = () => {
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2 flex items-center">
-          <FileText className="w-8 h-8 mr-3 text-purple-600" />
+      <div className="mb-12">
+        <h1 className="text-4xl font-bold text-slate-900 mb-2 flex items-center">
+          <FileText className="w-10 h-10 mr-4 text-purple-600" />
           Content Index
         </h1>
-        <p className="text-slate-600">
+        <p className="text-lg text-slate-600 font-medium">
           Discover and navigate your knowledge vault efficiently
         </p>
       </div>
 
       {/* View Mode Selector */}
-      <div className="mb-6 flex flex-wrap gap-3">
+      <div className="mb-8 flex flex-wrap gap-3">
         <ViewModeButton
           mode="overview"
           icon={<Grid className="w-4 h-4" />}
@@ -459,65 +459,78 @@ const ContentIndex: React.FC = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="space-y-6"
+            className="space-y-8"
           >
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <StatCard
-                icon={<BookOpen className="w-5 h-5 text-purple-600" />}
+                icon={<BookOpen className="w-6 h-6 text-purple-600" />}
                 title="Total Items"
                 value={stats.totalItems}
                 subtitle="All content"
               />
               <StatCard
-                icon={<Quote className="w-5 h-5 text-blue-600" />}
+                icon={<Quote className="w-6 h-6 text-blue-600" />}
                 title="Quotes"
                 value={stats.byType.quotes}
                 onClick={() => setViewMode('quotes')}
               />
               <StatCard
-                icon={<BookOpen className="w-5 h-5 text-green-600" />}
+                icon={<BookOpen className="w-6 h-6 text-green-600" />}
                 title="Understanding"
                 value={stats.byType.understanding}
                 onClick={() => setViewMode('understanding')}
               />
               <StatCard
-                icon={<Languages className="w-5 h-5 text-orange-600" />}
+                icon={<Languages className="w-6 h-6 text-orange-600" />}
                 title="Languages"
                 value={Object.keys(stats.byLanguage).length}
               />
             </div>
 
             {/* Search and Filters */}
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-4">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
               {/* Search, Language, and Sort Row */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="relative">
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <Search className="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
                     placeholder="Search content..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-base font-medium"
                   />
                 </div>
                 <select
                   value={selectedLanguage}
                   onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent font-medium text-slate-900"
                 >
                   <option value="">All Languages</option>
                   {Object.keys(stats.byLanguage).map(lang => (
                     <option key={lang} value={lang}>
-                      {lang === 'en' ? 'English' : lang.charAt(0).toUpperCase() + lang.slice(1)}
+                      {lang === 'en' ? 'English' : 
+                       lang === 'hi' ? 'हिन्दी (Hindi)' :
+                       lang === 'gu' ? 'ગુજરાતી (Gujarati)' :
+                       lang === 'sa' ? 'संस्कृत (Sanskrit)' :
+                       lang === 'es' ? 'Español (Spanish)' :
+                       lang === 'fr' ? 'Français (French)' :
+                       lang === 'de' ? 'Deutsch (German)' :
+                       lang === 'it' ? 'Italiano (Italian)' :
+                       lang === 'pt' ? 'Português (Portuguese)' :
+                       lang === 'ru' ? 'Русский (Russian)' :
+                       lang === 'zh' ? '中文 (Chinese)' :
+                       lang === 'ja' ? '日本語 (Japanese)' :
+                       lang === 'ko' ? '한국어 (Korean)' :
+                       lang.charAt(0).toUpperCase() + lang.slice(1)}
                     </option>
                   ))}
                 </select>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as 'date' | 'title' | 'type')}
-                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent font-medium text-slate-900"
                 >
                   <option value="date">Sort by Date</option>
                   <option value="title">Sort by Title</option>
@@ -536,54 +549,65 @@ const ContentIndex: React.FC = () => {
 
             {/* Content List */}
             <div className="space-y-4">
-              {filteredContent.map((item) => (
+              {filteredContent.map((item, index) => (
                 <motion.div
                   key={`${item.type}-${item.id}`}
-                  className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow"
+                  className="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md hover:border-slate-300 transition-all p-6"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.03 }}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start space-x-3 flex-1">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start space-x-4 flex-1">
+                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${
                         item.type === 'quote' ? 'bg-blue-100' : 'bg-purple-100'
                       }`}>
                         {item.type === 'quote' ? (
-                          <Quote className="w-5 h-5 text-blue-600" />
+                          <Quote className="w-6 h-6 text-blue-600" />
                         ) : (
-                          <BookOpen className="w-5 h-5 text-purple-600" />
+                          <BookOpen className="w-6 h-6 text-purple-600" />
                         )}
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-semibold text-slate-900 mb-1">{item.title}</h3>
-                        <div className="text-sm text-slate-600 mb-2 line-clamp-2">
+                        <h3 className="font-bold text-slate-900 mb-2 text-lg">{item.title}</h3>
+                        <div className="text-sm text-slate-600 mb-3 line-clamp-2 leading-relaxed font-medium">
                           <RichTextDisplay content={item.content.length > 150 
                             ? `${item.content.substring(0, 150)}...` 
                             : item.content} />
                         </div>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-semibold">
                           {item.categories.map(category => (
-                            <span key={category} className="bg-slate-100 px-2 py-1 rounded">
+                            <span key={category} className="bg-slate-100 px-3 py-1 rounded-full">
                               {category}
                             </span>
                           ))}
+                          <span className="text-slate-400">•</span>
                           <span>{item.language === 'en' ? 'English' : item.language}</span>
+                          <span className="text-slate-400">•</span>
                           <span>{new Date(item.created_at).toLocaleDateString()}</span>
-                          {item.word_count && <span>{item.word_count} words</span>}
+                          {item.word_count && (
+                            <>
+                              <span className="text-slate-400">•</span>
+                              <span>{item.word_count} words</span>
+                            </>
+                          )}
                           {item.is_draft && (
-                            <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
-                              Draft
-                            </span>
+                            <>
+                              <span className="text-slate-400">•</span>
+                              <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
+                                Draft
+                              </span>
+                            </>
                           )}
                         </div>
                       </div>
                     </div>
                     <button
                       onClick={() => setSelectedItem(item)}
-                      className="text-purple-600 hover:text-purple-700 p-2 rounded-lg hover:bg-purple-50 transition-colors"
+                      className="p-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors flex-shrink-0"
                       title="View details"
                     >
-                      <Eye className="w-4 h-4" />
+                      <Eye className="w-5 h-5" />
                     </button>
                   </div>
                 </motion.div>
@@ -591,10 +615,10 @@ const ContentIndex: React.FC = () => {
             </div>
 
             {filteredContent.length === 0 && (
-              <div className="text-center py-12">
+              <div className="text-center py-16">
                 <Search className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-slate-900 mb-2">No content found</h3>
-                <p className="text-slate-600">
+                <h3 className="text-xl font-bold text-slate-900 mb-2">No content found</h3>
+                <p className="text-slate-600 font-medium">
                   Try adjusting your search terms or filters
                 </p>
               </div>
@@ -619,35 +643,48 @@ const ContentIndex: React.FC = () => {
             </div>
 
             {/* Search and Filters for Quotes */}
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-4">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
               {/* Search, Language, and Sort Row */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="relative">
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <Search className="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
                     placeholder="Search quotes..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-base font-medium"
                   />
                 </div>
                 <select
                   value={selectedLanguage}
                   onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent font-medium text-slate-900"
                 >
                   <option value="">All Languages</option>
                   {Object.keys(stats.byLanguage).map(lang => (
                     <option key={lang} value={lang}>
-                      {lang === 'en' ? 'English' : lang.charAt(0).toUpperCase() + lang.slice(1)}
+                      {lang === 'en' ? 'English' : 
+                       lang === 'hi' ? 'हिन्दी (Hindi)' :
+                       lang === 'gu' ? 'ગુજરાતી (Gujarati)' :
+                       lang === 'sa' ? 'संस्कृत (Sanskrit)' :
+                       lang === 'es' ? 'Español (Spanish)' :
+                       lang === 'fr' ? 'Français (French)' :
+                       lang === 'de' ? 'Deutsch (German)' :
+                       lang === 'it' ? 'Italiano (Italian)' :
+                       lang === 'pt' ? 'Português (Portuguese)' :
+                       lang === 'ru' ? 'Русский (Russian)' :
+                       lang === 'zh' ? '中文 (Chinese)' :
+                       lang === 'ja' ? '日本語 (Japanese)' :
+                       lang === 'ko' ? '한국어 (Korean)' :
+                       lang.charAt(0).toUpperCase() + lang.slice(1)}
                     </option>
                   ))}
                 </select>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as 'date' | 'title' | 'type')}
-                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent font-medium text-slate-900"
                 >
                   <option value="date">Sort by Date</option>
                   <option value="title">Sort by Title</option>
@@ -667,15 +704,15 @@ const ContentIndex: React.FC = () => {
               {filteredContent.filter(item => item.type === 'quote').map((item) => (
                 <motion.div
                   key={item.id}
-                  className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-pointer"
+                  className="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-pointer p-6"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   onClick={() => setSelectedItem(item)}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-3 flex-1">
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <Quote className="w-5 h-5 text-blue-600" />
+                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <Quote className="w-6 h-6 text-blue-600" />
                       </div>
                       <div className="flex-1">
                         <div className="text-slate-700 italic mb-2">
@@ -716,35 +753,48 @@ const ContentIndex: React.FC = () => {
             </div>
 
             {/* Search and Filters for Understanding */}
-            <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-4">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
               {/* Search, Language, and Sort Row */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="relative">
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <Search className="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
                     placeholder="Search understanding..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-base font-medium"
                   />
                 </div>
                 <select
                   value={selectedLanguage}
                   onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent font-medium text-slate-900"
                 >
                   <option value="">All Languages</option>
                   {Object.keys(stats.byLanguage).map(lang => (
                     <option key={lang} value={lang}>
-                      {lang === 'en' ? 'English' : lang.charAt(0).toUpperCase() + lang.slice(1)}
+                      {lang === 'en' ? 'English' : 
+                       lang === 'hi' ? 'हिन्दी (Hindi)' :
+                       lang === 'gu' ? 'ગુજરાતી (Gujarati)' :
+                       lang === 'sa' ? 'संस्कृत (Sanskrit)' :
+                       lang === 'es' ? 'Español (Spanish)' :
+                       lang === 'fr' ? 'Français (French)' :
+                       lang === 'de' ? 'Deutsch (German)' :
+                       lang === 'it' ? 'Italiano (Italian)' :
+                       lang === 'pt' ? 'Português (Portuguese)' :
+                       lang === 'ru' ? 'Русский (Russian)' :
+                       lang === 'zh' ? '中文 (Chinese)' :
+                       lang === 'ja' ? '日本語 (Japanese)' :
+                       lang === 'ko' ? '한국어 (Korean)' :
+                       lang.charAt(0).toUpperCase() + lang.slice(1)}
                     </option>
                   ))}
                 </select>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as 'date' | 'title' | 'type')}
-                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent font-medium text-slate-900"
                 >
                   <option value="date">Sort by Date</option>
                   <option value="title">Sort by Title</option>
@@ -764,15 +814,15 @@ const ContentIndex: React.FC = () => {
               {filteredContent.filter(item => item.type === 'understanding').map((item) => (
                 <motion.div
                   key={item.id}
-                  className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-pointer"
+                  className="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-pointer p-6"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   onClick={() => setSelectedItem(item)}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-3 flex-1">
-                      <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                        <BookOpen className="w-5 h-5 text-purple-600" />
+                      <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <BookOpen className="w-6 h-6 text-purple-600" />
                       </div>
                       <div className="flex-1">
                         <h3 className="font-semibold text-slate-900 mb-1">{item.title}</h3>
@@ -798,6 +848,13 @@ const ContentIndex: React.FC = () => {
                         </div>
                       </div>
                     </div>
+                    <button
+                      onClick={() => setSelectedItem(item)}
+                      className="text-purple-600 hover:text-purple-700 p-2 rounded-lg hover:bg-purple-50 transition-colors"
+                      title="View details"
+                    >
+                      <Eye className="w-5 h-5" />
+                    </button>
                   </div>
                 </motion.div>
               ))}
@@ -830,7 +887,7 @@ const ContentIndex: React.FC = () => {
               {Object.entries(stats.byCategory).map(([category, count]) => (
                 <motion.div
                   key={category}
-                  className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow"
+                  className="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                 >
@@ -842,8 +899,8 @@ const ContentIndex: React.FC = () => {
                         setViewMode('overview');
                       }}
                     >
-                      <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                        <Tag className="w-5 h-5 text-green-600" />
+                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                        <Tag className="w-6 h-6 text-green-600" />
                       </div>
                       <div>
                         <h3 className="font-semibold text-slate-900">{category}</h3>

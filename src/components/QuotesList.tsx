@@ -12,13 +12,30 @@ import {
   ChevronUp,
   X,
   Copy,
-  Share2
+  Share2,
+  Filter
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Database } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import RichTextEditor from './RichTextEditor';
 import RichTextDisplay from './RichTextDisplay';
+
+const languageNames: { [key: string]: string } = {
+  en: "English",
+  hi: "हिन्दी (Hindi)",
+  gu: "ગુજરાતી (Gujarati)",
+  sa: "संस्कृत (Sanskrit)",
+  es: "Español (Spanish)",
+  fr: "Français (French)",
+  de: "Deutsch (German)",
+  it: "Italiano (Italian)",
+  pt: "Português (Portuguese)",
+  ru: "Русский (Russian)",
+  zh: "中文 (Chinese)",
+  ja: "日本語 (Japanese)",
+  ko: "한국어 (Korean)"
+};
 
 type QuoteWithCategories = Database['public']['Tables']['quotes']['Row'] & {
   categories: Database['public']['Tables']['categories']['Row'][];
@@ -41,6 +58,9 @@ const QuotesList: React.FC = () => {
     category_ids: [] as string[],
     language: 'en'
   });
+
+  const [categorySearchTerm, setCategorySearchTerm] = useState('');
+  const [showCategoryFilter, setShowCategoryFilter] = useState(false);
 
   useEffect(() => {
     loadQuotes();
@@ -254,18 +274,20 @@ const QuotesList: React.FC = () => {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8">
-      <div className="mb-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+    <div className="p-4 sm:p-6 lg:p-8 min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-50">
+      <div className="mb-12">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">Quotes</h1>
-            <p className="text-slate-600">Collect and organize meaningful quotes</p>
+            <h1 className="text-5xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent mb-3">
+              Quotes
+            </h1>
+            <p className="text-lg text-slate-600 font-medium">Collect and organize meaningful quotes</p>
           </div>
           <motion.button
             onClick={() => setShowAddForm(true)}
-            className="bg-blue-600 text-white px-4 sm:px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2 shadow-sm w-full sm:w-auto justify-center"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+            className="bg-gradient-to-r from-blue-600 via-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:shadow-xl transition-all flex items-center space-x-2 shadow-lg w-full sm:w-auto justify-center font-semibold hover:scale-105 active:scale-95"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
           >
             <Plus className="w-5 h-5" />
             <span>Add Quote</span>
@@ -273,47 +295,89 @@ const QuotesList: React.FC = () => {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col gap-4 mb-6">
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/50 p-6 shadow-sm space-y-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
             <input
               type="text"
               placeholder="Search quotes..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-12 pr-4 py-3.5 border border-slate-300/50 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base font-medium transition-all"
             />
           </div>
+
           <div className="flex flex-col sm:flex-row gap-4">
-            {/* Category Filter with Checkboxes */}
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Filter by Categories
-              </label>
-              <div className="border border-slate-300 rounded-lg p-3 max-h-40 overflow-y-auto bg-white">
-                {categories.map(category => (
-                  <label key={category.id} className="flex items-center space-x-2 py-1">
-                    <input
-                      type="checkbox"
-                      checked={selectedCategories.includes(category.id)}
-                      onChange={() => handleFilterCategoryToggle(category.id)}
-                      className="text-blue-600 focus:ring-blue-500 rounded"
-                    />
-                    <span className="text-sm text-slate-700">{category.name}</span>
-                  </label>
-                ))}
-              </div>
+            {/* Enhanced Category Filter */}
+            <div className="flex-1 relative">
+              <button
+                onClick={() => setShowCategoryFilter(!showCategoryFilter)}
+                className="w-full flex items-center justify-between px-4 py-3.5 border border-slate-300/50 rounded-xl text-slate-700 font-medium hover:bg-slate-50 transition-colors"
+              >
+                <div className="flex items-center space-x-2">
+                  <Filter className="w-4 h-4" />
+                  <span>Categories {selectedCategories.length > 0 && `(${selectedCategories.length})`}</span>
+                </div>
+                <ChevronDown className={`w-4 h-4 transition-transform ${showCategoryFilter ? 'rotate-180' : ''}`} />
+              </button>
+
+              <AnimatePresence>
+                {showCategoryFilter && (
+                  <motion.div
+                    className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-10"
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                  >
+                    <div className="p-4 border-b border-slate-200">
+                      <Search className="absolute left-8 top-8 w-4 h-4 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search categories..."
+                        value={categorySearchTerm}
+                        onChange={(e) => setCategorySearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 border border-slate-300/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      />
+                    </div>
+                    <div className="max-h-64 overflow-y-auto p-4 space-y-2">
+                      {categories
+                        .filter(cat => cat.name.toLowerCase().includes(categorySearchTerm.toLowerCase()))
+                        .map(category => (
+                          <label key={category.id} className="flex items-center space-x-3 p-3 rounded-lg hover:bg-blue-50 cursor-pointer transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={selectedCategories.includes(category.id)}
+                              onChange={() => handleFilterCategoryToggle(category.id)}
+                              className="w-4 h-4 text-blue-600 focus:ring-blue-500 rounded cursor-pointer"
+                            />
+                            <span className="text-sm font-medium text-slate-700">{category.name}</span>
+                          </label>
+                        ))}
+                    </div>
+                    {selectedCategories.length > 0 && (
+                      <div className="border-t border-slate-200 p-4">
+                        <button
+                          onClick={() => setSelectedCategories([])}
+                          className="w-full text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                        >
+                          Clear Selection
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             <select
               value={selectedLanguage}
               onChange={(e) => setSelectedLanguage(e.target.value)}
-              className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 px-4 py-3.5 border border-slate-300/50 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium text-slate-900 hover:bg-slate-50 transition-all cursor-pointer"
             >
               <option value="">All Languages</option>
               {uniqueLanguages.map(lang => (
                 <option key={lang} value={lang}>
-                  {lang === 'en' ? 'English' : lang.charAt(0).toUpperCase() + lang.slice(1)}
+                  {languageNames[lang] || lang}
                 </option>
               ))}
             </select>
@@ -322,46 +386,42 @@ const QuotesList: React.FC = () => {
       </div>
 
       {/* Quotes List */}
-      <div className="space-y-4">
+      <div className="space-y-6">
         <AnimatePresence>
-          {filteredQuotes.map((quote) => (
+          {filteredQuotes.map((quote, index) => (
             <motion.div
               key={quote.id}
-              className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-pointer"
+              className="group bg-white rounded-2xl shadow-sm hover:shadow-lg hover:shadow-blue-200/50 border border-slate-200/50 hover:border-blue-200 transition-all p-6 sm:p-7 cursor-pointer"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              layout
+              transition={{ delay: index * 0.03 }}
               onClick={() => setSelectedQuote(quote)}
             >
               <div className="space-y-4">
-                {/* Header */}
-                <div className="flex items-start justify-between">
+                {/* Header with Categories */}
+                <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
-                    <div className="flex flex-wrap items-center gap-2 mb-3">
-                      <Quote className="w-4 h-4 text-blue-600" />
-                      <div className="flex flex-wrap gap-1">
-                        {quote.categories.map(category => (
-                          <span key={category.id} className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full">
-                            {category.name}
-                          </span>
-                        ))}
+                    <div className="flex flex-wrap items-center gap-2 mb-4">
+                      {quote.categories.map(category => (
+                        <span key={category.id} className="text-xs font-bold bg-gradient-to-r from-blue-100 to-blue-50 text-blue-700 px-3 py-1.5 rounded-full border border-blue-200/50">
+                          {category.name}
+                        </span>
+                      ))}
+                      <div className="flex items-center space-x-1.5 text-xs text-slate-500 font-medium ml-auto sm:ml-0 bg-slate-50 px-3 py-1.5 rounded-full">
+                        <Languages className="w-3.5 h-3.5" />
+                        <span>{languageNames[quote.language] || quote.language}</span>
                       </div>
-                      <span className="text-slate-300">•</span>
-                      <Languages className="w-4 h-4 text-slate-400" />
-                      <span className="text-sm text-slate-500">
-                        {quote.language === 'en' ? 'English' : quote.language}
-                      </span>
                     </div>
                   </div>
                   
-                  <div className="flex space-x-2">
+                  <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         copyShareLink(quote.id);
                       }}
-                      className="p-2 text-slate-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50"
+                      className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all rounded-lg"
                       title="Copy share link"
                     >
                       <Share2 className="w-4 h-4" />
@@ -371,7 +431,7 @@ const QuotesList: React.FC = () => {
                         e.stopPropagation();
                         copyToClipboard(quote.text, 'Quote');
                       }}
-                      className="p-2 text-slate-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50"
+                      className="p-2.5 text-slate-400 hover:text-green-600 hover:bg-green-50 transition-all rounded-lg"
                       title="Copy quote"
                     >
                       <Copy className="w-4 h-4" />
@@ -381,7 +441,7 @@ const QuotesList: React.FC = () => {
                         e.stopPropagation();
                         setEditingQuote(quote);
                       }}
-                      className="p-2 text-slate-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50"
+                      className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all rounded-lg"
                       title="Edit quote"
                     >
                       <Edit3 className="w-4 h-4" />
@@ -391,7 +451,7 @@ const QuotesList: React.FC = () => {
                         e.stopPropagation();
                         handleDeleteQuote(quote.id);
                       }}
-                      className="p-2 text-slate-400 hover:text-red-600 transition-colors rounded-lg hover:bg-red-50"
+                      className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all rounded-lg"
                       title="Delete quote"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -400,42 +460,45 @@ const QuotesList: React.FC = () => {
                 </div>
 
                 {/* Quote Content */}
-                <div>
-                  <blockquote className="text-slate-800 text-base sm:text-lg leading-relaxed border-l-4 border-blue-200 pl-4 italic">
-                    "{expandedCards.has(quote.id) ? (
-                      <RichTextDisplay 
-                        content={quote.text} 
-                        className="inline"
-                      />
-                    ) : (
-                      <RichTextDisplay 
-                        content={truncateText(quote.text)} 
-                        className="inline"
-                      />
-                    )}"
-                  </blockquote>
+                <blockquote className="text-lg text-slate-800 leading-relaxed border-l-4 border-blue-300 pl-6 italic py-2 font-medium group-hover:border-blue-500 transition-colors">
+                  "{expandedCards.has(quote.id) ? (
+                    <RichTextDisplay 
+                      content={quote.text} 
+                      className="inline not-italic text-slate-800"
+                    />
+                  ) : (
+                    <RichTextDisplay 
+                      content={truncateText(quote.text, 180)} 
+                      className="inline not-italic text-slate-800"
+                    />
+                  )}"
+                </blockquote>
                   
-                  {quote.text.length > 150 && (
-                    <button
-                      onClick={() => toggleCardExpansion(quote.id)}
-                      className="mt-2 text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center space-x-1"
-                    >
-                      <span>{expandedCards.has(quote.id) ? 'Show less' : 'Show more'}</span>
-                      {expandedCards.has(quote.id) ? (
-                        <ChevronUp className="w-4 h-4" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4" />
-                      )}
-                    </button>
-                  )}
-                </div>
+                {quote.text.length > 180 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleCardExpansion(quote.id);
+                    }}
+                    className="text-blue-600 hover:text-blue-700 text-sm font-bold flex items-center space-x-1.5 transition-colors"
+                  >
+                    <span>{expandedCards.has(quote.id) ? 'Show less' : 'Show more'}</span>
+                    {expandedCards.has(quote.id) ? (
+                      <ChevronUp className="w-4 h-4" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4" />
+                    )}
+                  </button>
+                )}
 
                 {/* Footer */}
-                <div className="pt-3 border-t border-slate-100">
-                  <div className="flex items-center text-sm text-slate-500">
-                    <Calendar className="w-4 h-4 mr-1" />
-                    {new Date(quote.created_at).toLocaleDateString()}
-                  </div>
+                <div className="pt-4 border-t border-slate-100 flex items-center text-xs font-medium text-slate-500">
+                  <Calendar className="w-3.5 h-3.5 mr-2" />
+                  {new Date(quote.created_at).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                  })}
                 </div>
               </div>
             </motion.div>
@@ -443,16 +506,32 @@ const QuotesList: React.FC = () => {
         </AnimatePresence>
 
         {filteredQuotes.length === 0 && (
-          <div className="text-center py-12">
-            <Quote className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-slate-900 mb-2">No quotes found</h3>
-            <p className="text-slate-600">
+          <motion.div
+            className="text-center py-20"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="w-20 h-20 bg-gradient-to-br from-slate-200 to-slate-100 rounded-2xl mx-auto mb-6 flex items-center justify-center">
+              <Quote className="w-10 h-10 text-slate-400" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">No quotes found</h3>
+            <p className="text-slate-600 font-medium mb-6">
               {searchTerm || selectedCategories.length > 0 || selectedLanguage
-                ? 'Try adjusting your filters'
+                ? 'Try adjusting your filters or search terms'
                 : 'Start by adding your first quote'
               }
             </p>
-          </div>
+            {!(searchTerm || selectedCategories.length > 0 || selectedLanguage) && (
+              <motion.button
+                onClick={() => setShowAddForm(true)}
+                className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+                whileHover={{ scale: 1.05 }}
+              >
+                <Plus className="w-4 h-4 inline mr-2" />
+                Add First Quote
+              </motion.button>
+            )}
+          </motion.div>
         )}
       </div>
 
@@ -514,7 +593,7 @@ const QuotesList: React.FC = () => {
                   <div className="flex items-center space-x-2 bg-slate-100 px-3 py-1 rounded-full">
                     <Languages className="w-4 h-4 text-slate-600" />
                     <span className="text-sm text-slate-600">
-                      {selectedQuote.language === 'en' ? 'English' : selectedQuote.language}
+                      {languageNames[selectedQuote.language] || selectedQuote.language}
                     </span>
                   </div>
                 </div>
@@ -588,7 +667,7 @@ const QuotesList: React.FC = () => {
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Categories * (Select at least one)
                   </label>
-                  <div className="border border-slate-300 rounded-lg p-3 max-h-40 overflow-y-auto bg-white">
+                  <div className="border border-slate-300 rounded-lg p-4 max-h-48 overflow-y-auto bg-white">
                     {categories.map(category => (
                       <label key={category.id} className="flex items-center space-x-2 py-2">
                         <input
@@ -616,18 +695,18 @@ const QuotesList: React.FC = () => {
                     className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="en">English</option>
-                    <option value="hi">Hindi</option>
-                    <option value="gu">Gujarati</option>
-                    <option value="sa">Sanskrit</option>
-                    <option value="es">Spanish</option>
-                    <option value="fr">French</option>
-                    <option value="de">German</option>
-                    <option value="it">Italian</option>
-                    <option value="pt">Portuguese</option>
-                    <option value="ru">Russian</option>
-                    <option value="zh">Chinese</option>
-                    <option value="ja">Japanese</option>
-                    <option value="ko">Korean</option>
+                    <option value="hi">हिन्दी (Hindi)</option>
+                    <option value="gu">ગુજરાતી (Gujarati)</option>
+                    <option value="sa">संस्कृत (Sanskrit)</option>
+                    <option value="es">Español (Spanish)</option>
+                    <option value="fr">Français (French)</option>
+                    <option value="de">Deutsch (German)</option>
+                    <option value="it">Italiano (Italian)</option>
+                    <option value="pt">Português (Portuguese)</option>
+                    <option value="ru">Русский (Russian)</option>
+                    <option value="zh">中文 (Chinese)</option>
+                    <option value="ja">日本語 (Japanese)</option>
+                    <option value="ko">한국어 (Korean)</option>
                   </select>
                 </div>
 
@@ -694,7 +773,7 @@ const QuotesList: React.FC = () => {
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Categories * (Select at least one)
                   </label>
-                  <div className="border border-slate-300 rounded-lg p-3 max-h-40 overflow-y-auto bg-white">
+                  <div className="border border-slate-300 rounded-lg p-4 max-h-48 overflow-y-auto bg-white">
                     {categories.map(category => (
                       <label key={category.id} className="flex items-center space-x-2 py-2">
                         <input
@@ -722,18 +801,18 @@ const QuotesList: React.FC = () => {
                     className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="en">English</option>
-                    <option value="hi">Hindi</option>
-                    <option value="gu">Gujarati</option>
-                    <option value="sa">Sanskrit</option>
-                    <option value="es">Spanish</option>
-                    <option value="fr">French</option>
-                    <option value="de">German</option>
-                    <option value="it">Italian</option>
-                    <option value="pt">Portuguese</option>
-                    <option value="ru">Russian</option>
-                    <option value="zh">Chinese</option>
-                    <option value="ja">Japanese</option>
-                    <option value="ko">Korean</option>
+                    <option value="hi">हिन्दी (Hindi)</option>
+                    <option value="gu">ગુજરાતી (Gujarati)</option>
+                    <option value="sa">संस्कृत (Sanskrit)</option>
+                    <option value="es">Español (Spanish)</option>
+                    <option value="fr">Français (French)</option>
+                    <option value="de">Deutsch (German)</option>
+                    <option value="it">Italiano (Italian)</option>
+                    <option value="pt">Português (Portuguese)</option>
+                    <option value="ru">Русский (Russian)</option>
+                    <option value="zh">中文 (Chinese)</option>
+                    <option value="ja">日本語 (Japanese)</option>
+                    <option value="ko">한국어 (Korean)</option>
                   </select>
                 </div>
 

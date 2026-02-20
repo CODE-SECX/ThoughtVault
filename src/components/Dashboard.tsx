@@ -121,18 +121,20 @@ const Dashboard: React.FC = () => {
     color: string;
   }> = ({ icon, title, value, subtitle, color }) => (
     <motion.div
-      className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow"
-      whileHover={{ y: -2 }}
+      className="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-lg hover:border-slate-300 transition-all p-6"
+      whileHover={{ y: -4 }}
     >
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium text-slate-600">{title}</p>
-          <p className="text-2xl font-bold text-slate-900 mt-1">{value}</p>
+          <p className="text-xs uppercase tracking-widest font-semibold text-slate-500 mb-1">
+            {title}
+          </p>
+          <p className="text-3xl font-bold text-slate-900 mb-1">{value}</p>
           {subtitle && (
-            <p className="text-xs text-slate-500 mt-1">{subtitle}</p>
+            <p className="text-sm text-slate-500 font-medium">{subtitle}</p>
           )}
         </div>
-        <div className={`w-12 h-12 ${color} rounded-lg flex items-center justify-center`}>
+        <div className={`${color} rounded-xl p-3 shadow-lg`}>
           {icon}
         </div>
       </div>
@@ -155,42 +157,42 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 mb-2">Dashboard</h1>
-        <p className="text-slate-600">Your personal knowledge management overview</p>
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="mb-12">
+        <h1 className="text-4xl font-bold text-slate-900 mb-3">Dashboard</h1>
+        <p className="text-lg text-slate-600 font-medium">Your personal knowledge management overview</p>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard
-          icon={<Quote className="w-6 h-6 text-white" />}
+          icon={<Quote className="w-8 h-8 text-white" />}
           title="Total Quotes"
           value={stats.totalQuotes}
-          color="bg-blue-500"
+          color="bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg"
         />
         <StatCard
-          icon={<BookOpen className="w-6 h-6 text-white" />}
+          icon={<BookOpen className="w-8 h-8 text-white" />}
           title="Understanding Entries"
           value={stats.totalUnderstanding}
           subtitle={`${stats.draftCount} drafts`}
-          color="bg-purple-500"
+          color="bg-gradient-to-br from-purple-500 to-purple-600 shadow-lg"
         />
         <StatCard
-          icon={<TrendingUp className="w-6 h-6 text-white" />}
+          icon={<TrendingUp className="w-8 h-8 text-white" />}
           title="Total Words"
           value={stats.totalWordCount.toLocaleString()}
-          color="bg-emerald-500"
+          color="bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-lg"
         />
         <StatCard
-          icon={<Languages className="w-6 h-6 text-white" />}
+          icon={<Languages className="w-8 h-8 text-white" />}
           title="Languages"
           value={Object.keys(stats.languageStats).length}
-          color="bg-orange-500"
+          color="bg-gradient-to-br from-orange-500 to-orange-600 shadow-lg"
         />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
         {/* Language Distribution */}
         <motion.div
           className="bg-white rounded-xl shadow-sm border border-slate-200 p-6"
@@ -198,26 +200,30 @@ const Dashboard: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center">
-            <Languages className="w-5 h-5 mr-2" />
-            Language Distribution
-          </h3>
-          <div className="space-y-3">
+          <div className="flex items-center space-x-3 mb-6">
+            <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+              <Languages className="w-5 h-5 text-orange-600" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-900">Language Distribution</h3>
+          </div>
+          <div className="space-y-4">
             {Object.entries(stats.languageStats).map(([language, count]) => (
               <div key={language} className="flex items-center justify-between">
-                <span className="text-sm font-medium text-slate-700 capitalize">
+                <span className="text-sm font-semibold text-slate-700 capitalize w-24">
                   {language === 'en' ? 'English' : language}
                 </span>
-                <div className="flex items-center space-x-2">
-                  <div className="w-20 h-2 bg-slate-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-blue-500 rounded-full"
-                      style={{
+                <div className="flex items-center space-x-3 flex-1">
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden flex-1">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-orange-400 to-orange-600 rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{
                         width: `${(count / Math.max(...Object.values(stats.languageStats))) * 100}%`
                       }}
+                      transition={{ duration: 0.8, delay: 0.1 }}
                     />
                   </div>
-                  <span className="text-sm text-slate-600">{count}</span>
+                  <span className="text-sm font-semibold text-slate-700 w-8 text-right">{count}</span>
                 </div>
               </div>
             ))}
@@ -231,34 +237,47 @@ const Dashboard: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
-          <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center">
-            <Clock className="w-5 h-5 mr-2" />
-            Recent Activity
-          </h3>
+          <div className="flex items-center space-x-3 mb-6">
+            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+              <Clock className="w-5 h-5 text-blue-600" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-900">Recent Activity</h3>
+          </div>
           <div className="space-y-3">
-            {stats.recentActivity.map((activity) => (
-              <div key={activity.id} className="group flex items-start space-x-3 p-3 rounded-lg hover:bg-slate-50 transition-colors">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+            {stats.recentActivity.map((activity, index) => (
+              <motion.div
+                key={activity.id}
+                className="group flex items-start space-x-3 p-3 rounded-lg hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-200"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 * index }}
+              >
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
                   activity.type === 'quote' ? 'bg-blue-100' : 'bg-purple-100'
                 }`}>
                   {activity.type === 'quote' ? (
-                    <Quote className="w-4 h-4 text-blue-600" />
+                    <Quote className="w-5 h-5 text-blue-600" />
                   ) : (
-                    <BookOpen className="w-4 h-4 text-purple-600" />
+                    <BookOpen className="w-5 h-5 text-purple-600" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-900 truncate">
+                  <p className="text-sm font-semibold text-slate-900 truncate">
                     {activity.title}
                   </p>
-                  <p className="text-xs text-slate-500">
-                    {new Date(activity.created_at).toLocaleDateString()}
+                  <p className="text-xs text-slate-500 font-medium">
+                    {new Date(activity.created_at).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
                   </p>
                 </div>
-              </div>
+              </motion.div>
             ))}
             {stats.recentActivity.length === 0 && (
-              <p className="text-sm text-slate-500 text-center py-8">
+              <p className="text-sm text-slate-500 text-center py-8 font-medium">
                 No recent activity. Start adding quotes or understanding entries!
               </p>
             )}

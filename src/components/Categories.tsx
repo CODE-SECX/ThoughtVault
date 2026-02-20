@@ -153,6 +153,15 @@ const Categories: React.FC = () => {
     }
   };
 
+  const copyToClipboard = async (text: string, type: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`${type} copied!`);
+    } catch (error) {
+      toast.error('Failed to copy');
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-8">
@@ -170,15 +179,15 @@ const Categories: React.FC = () => {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <div className="mb-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div className="mb-12">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">Categories</h1>
-            <p className="text-slate-600">Organize your quotes and understanding entries</p>
+            <h1 className="text-4xl font-bold text-slate-900 mb-2">Categories</h1>
+            <p className="text-lg text-slate-600 font-medium">Organize your quotes and understanding entries</p>
           </div>
           <motion.button
             onClick={() => setShowAddForm(true)}
-            className="bg-emerald-600 text-white px-4 sm:px-6 py-3 rounded-lg hover:bg-emerald-700 transition-colors flex items-center space-x-2 shadow-sm w-full sm:w-auto justify-center"
+            className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white px-6 py-3 rounded-lg hover:shadow-lg transition-all flex items-center space-x-2 shadow-md w-full sm:w-auto justify-center font-semibold"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
@@ -189,38 +198,41 @@ const Categories: React.FC = () => {
       </div>
 
       {/* Categories Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <AnimatePresence>
-          {categories.map((category) => (
+          {categories.map((category, index) => (
             <motion.div
               key={category.id}
-              className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow"
+              className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md hover:border-slate-300 transition-all"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              whileHover={{ y: -2 }}
+              transition={{ delay: index * 0.05 }}
+              whileHover={{ y: -4 }}
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-                    <FolderOpen className="w-5 h-5 text-emerald-600" />
+                  <div className="w-12 h-12 bg-gradient-to-br from-emerald-100 to-emerald-200 rounded-lg flex items-center justify-center shadow-sm">
+                    <FolderOpen className="w-6 h-6 text-emerald-700" />
                   </div>
                   <div>
-                    <h3 className="text-base sm:text-lg font-semibold text-slate-900">{category.name}</h3>
+                    <h3 className="text-lg font-bold text-slate-900">{category.name}</h3>
                   </div>
                 </div>
                 
-                <div className="flex space-x-2">
+                <div className="flex space-x-1">
                   <button
                     onClick={() => setEditingCategory(category)}
-                    className="p-1 text-slate-400 hover:text-emerald-600 transition-colors rounded"
+                    className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors rounded-lg"
+                    title="Edit category"
                   >
                     <Edit3 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => handleDeleteCategory(category.id)}
-                    className="p-1 text-slate-400 hover:text-red-600 transition-colors rounded"
+                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={(category.quotesCount || 0) + (category.understandingCount || 0) > 0}
+                    title="Delete category"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -228,11 +240,11 @@ const Categories: React.FC = () => {
               </div>
 
               {category.description && (
-                <p className="text-slate-600 text-sm mb-4 leading-relaxed">
+                <p className="text-slate-700 text-sm leading-relaxed mb-4 font-medium">
                   {category.description}
                   <button
                     onClick={() => copyToClipboard(category.description, 'Description')}
-                    className="ml-2 text-slate-400 hover:text-green-600 transition-colors"
+                    className="ml-2 text-slate-400 hover:text-green-600 transition-colors inline-block"
                     title="Copy description"
                   >
                     <Copy className="w-3 h-3 inline" />
@@ -240,19 +252,23 @@ const Categories: React.FC = () => {
                 </p>
               )}
 
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center space-x-3 sm:space-x-4">
-                  <div className="flex items-center space-x-1 text-blue-600">
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-sm">
+                <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-2 text-blue-600 font-semibold">
                     <Quote className="w-4 h-4" />
                     <span>{category.quotesCount || 0}</span>
                   </div>
-                  <div className="flex items-center space-x-1 text-purple-600">
+                  <div className="flex items-center space-x-2 text-purple-600 font-semibold">
                     <BookOpen className="w-4 h-4" />
                     <span>{category.understandingCount || 0}</span>
                   </div>
                 </div>
-                <span className="text-slate-500 text-xs sm:text-sm">
-                  {new Date(category.created_at).toLocaleDateString()}
+                <span className="text-slate-500 font-medium">
+                  {new Date(category.created_at).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                  })}
                 </span>
               </div>
             </motion.div>
@@ -260,10 +276,10 @@ const Categories: React.FC = () => {
         </AnimatePresence>
 
         {categories.length === 0 && (
-          <div className="col-span-full text-center py-12">
+          <div className="col-span-full text-center py-16">
             <FolderOpen className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-slate-900 mb-2">No categories yet</h3>
-            <p className="text-slate-600">Create your first category to organize your content</p>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">No categories yet</h3>
+            <p className="text-slate-600 font-medium">Create your first category to organize your content</p>
           </div>
         )}
       </div>

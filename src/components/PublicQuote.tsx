@@ -55,8 +55,8 @@ const PublicQuote: React.FC = () => {
       <div className="p-8">
         <div className="max-w-3xl mx-auto">
           <div className="animate-pulse space-y-6">
-            <div className="h-8 bg-slate-200 rounded w-1/3"></div>
-            <div className="h-48 bg-slate-200 rounded-lg"></div>
+            <div className="h-12 bg-slate-200 rounded w-1/2"></div>
+            <div className="h-32 bg-slate-200 rounded-lg"></div>
           </div>
         </div>
       </div>
@@ -66,49 +66,60 @@ const PublicQuote: React.FC = () => {
   if (error || !quote) {
     return (
       <div className="p-8">
-        <div className="max-w-3xl mx-auto bg-white border border-slate-200 rounded-xl p-6 text-center">
-          <p className="text-slate-700">{error || 'Quote not found'}</p>
+        <div className="max-w-3xl mx-auto bg-white border border-slate-200 rounded-xl p-8 text-center shadow-sm">
+          <p className="text-slate-700 font-medium text-lg">{error || 'Quote not found'}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8">
-      <div className="max-w-3xl mx-auto bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-        <div className="flex flex-wrap items-center gap-3 mb-6">
-          <div className="flex flex-wrap gap-2">
-            {categories.map(category => (
-              <div key={category.id} className="flex items-center space-x-2 bg-blue-50 px-3 py-1 rounded-full">
-                <QuoteIcon className="w-4 h-4 text-blue-600" />
-                <span className="text-sm font-medium text-blue-600">
-                  {category.name}
-                </span>
-              </div>
-            ))}
+    <div className="p-4 sm:p-6 lg:p-8 min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 sm:p-12">
+          {/* Metadata */}
+          <div className="flex flex-wrap items-center gap-3 mb-8">
+            <div className="flex flex-wrap gap-2">
+              {categories.map(category => (
+                <div key={category.id} className="flex items-center space-x-2 bg-blue-50 px-4 py-2 rounded-full border border-blue-100">
+                  <QuoteIcon className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-semibold text-blue-700">
+                    {category.name}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center space-x-2 bg-slate-100 px-4 py-2 rounded-full border border-slate-200">
+              <Languages className="w-4 h-4 text-slate-600" />
+              <span className="text-sm font-semibold text-slate-700">
+                {quote.language === 'en' ? 'English' : quote.language}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center space-x-2 bg-slate-100 px-3 py-1 rounded-full">
-            <Languages className="w-4 h-4 text-slate-600" />
-            <span className="text-sm text-slate-600">
-              {quote.language === 'en' ? 'English' : quote.language}
-            </span>
-          </div>
-        </div>
 
-        <blockquote className="text-slate-800 text-lg leading-relaxed border-l-4 border-blue-200 pl-6 italic bg-blue-50 p-6 rounded-r-lg">
-          "<RichTextDisplay content={quote.text} className="inline" />"
-        </blockquote>
+          {/* Quote */}
+          <blockquote className="text-2xl sm:text-3xl text-slate-900 leading-relaxed border-l-8 border-blue-400 pl-8 italic font-medium mb-8 py-4">
+            "<RichTextDisplay content={quote.text} className="inline not-italic" />"
+          </blockquote>
 
-        <div className="flex items-center justify-between text-sm text-slate-500 pt-4 border-t border-slate-200 mt-6">
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center">
-              <Calendar className="w-4 h-4 mr-1" />
-              Created: {new Date(quote.created_at).toLocaleDateString()}
+          {/* Metadata Footer */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 pt-8 border-t border-slate-200">
+            <div className="flex items-center text-sm text-slate-600 font-medium">
+              <Calendar className="w-4 h-4 mr-2 text-slate-500" />
+              Created: {new Date(quote.created_at).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })}
             </div>
             {quote.updated_at !== quote.created_at && (
-              <div className="flex items-center">
-                <Clock className="w-4 h-4 mr-1" />
-                Updated: {new Date(quote.updated_at).toLocaleDateString()}
+              <div className="flex items-center text-sm text-slate-600 font-medium">
+                <Clock className="w-4 h-4 mr-2 text-slate-500" />
+                Updated: {new Date(quote.updated_at).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
               </div>
             )}
           </div>

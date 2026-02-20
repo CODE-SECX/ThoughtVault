@@ -141,33 +141,33 @@ const Search: React.FC = () => {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <div className="mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">Search</h1>
-        <p className="text-slate-600">Find your quotes and understanding entries</p>
+      <div className="mb-12">
+        <h1 className="text-4xl font-bold text-slate-900 mb-2">Search</h1>
+        <p className="text-lg text-slate-600 font-medium">Find your quotes and understanding entries</p>
       </div>
 
       {/* Search Bar */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 mb-8">
-        <div className="relative mb-4">
-          <SearchIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 sm:p-8 mb-8">
+        <div className="relative mb-6">
+          <SearchIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-6 h-6" />
           <input
             type="text"
             placeholder="Search your wisdom collection..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 sm:py-4 text-base sm:text-lg border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-14 pr-4 py-4 sm:py-5 text-base sm:text-lg border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium"
           />
         </div>
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row flex-wrap gap-4">
-          <div className="flex items-center space-x-2">
-            <Filter className="w-4 h-4 text-slate-500" />
-            <span className="text-sm font-medium text-slate-700">Type:</span>
+          <div className="flex items-center space-x-3">
+            <Filter className="w-5 h-5 text-slate-500" />
+            <span className="text-sm font-semibold text-slate-700">Type:</span>
             <select
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value as any)}
-              className="text-sm border border-slate-300 rounded px-3 py-1 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium"
             >
               <option value="all">All</option>
               <option value="quotes">Quotes</option>
@@ -175,24 +175,29 @@ const Search: React.FC = () => {
             </select>
           </div>
 
-          <div className="flex items-center space-x-2">
-            <Languages className="w-4 h-4 text-slate-500" />
-            <span className="text-sm font-medium text-slate-700">Language:</span>
+          <div className="flex items-center space-x-3">
+            <Languages className="w-5 h-5 text-slate-500" />
+            <span className="text-sm font-semibold text-slate-700">Language:</span>
             <select
               value={selectedLanguage}
               onChange={(e) => setSelectedLanguage(e.target.value)}
-              className="text-sm border border-slate-300 rounded px-3 py-1 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium"
             >
               <option value="">All Languages</option>
               <option value="en">English</option>
-              <option value="hi">Hindi</option>
-              <option value="sa">Sanskrit</option>
-              <option value="es">Spanish</option>
-              <option value="fr">French</option>
-              <option value="de">German</option>
-              <option value="zh">Chinese</option>
-              <option value="ja">Japanese</option>
-              <option value="ar">Arabic</option>
+              <option value="hi">हिन्दी (Hindi)</option>
+              <option value="gu">ગુજરાતી (Gujarati)</option>
+              <option value="sa">संस्कृत (Sanskrit)</option>
+              <option value="es">Español (Spanish)</option>
+              <option value="fr">Français (French)</option>
+              <option value="de">Deutsch (German)</option>
+              <option value="it">Italiano (Italian)</option>
+              <option value="pt">Português (Portuguese)</option>
+              <option value="ru">Русский (Russian)</option>
+              <option value="zh">中文 (Chinese)</option>
+              <option value="ja">日本語 (Japanese)</option>
+              <option value="ko">한국어 (Korean)</option>
+              <option value="ar">العربية (Arabic)</option>
             </select>
           </div>
         </div>
@@ -201,42 +206,43 @@ const Search: React.FC = () => {
       {/* Search Results */}
       <div className="space-y-4">
         {loading && (
-          <div className="text-center py-8">
-            <div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
-            <p className="text-slate-600 mt-2">Searching...</p>
+          <div className="text-center py-12">
+            <div className="animate-spin w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full mx-auto"></div>
+            <p className="text-slate-600 mt-3 font-medium">Searching...</p>
           </div>
         )}
 
         {!loading && searchTerm && results.length === 0 && (
-          <div className="text-center py-12">
+          <div className="text-center py-16">
             <SearchIcon className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-slate-900 mb-2">No results found</h3>
-            <p className="text-slate-600">
+            <h3 className="text-xl font-bold text-slate-900 mb-2">No results found</h3>
+            <p className="text-slate-600 font-medium">
               Try different keywords or adjust your filters
             </p>
           </div>
         )}
 
         {!loading && !searchTerm && (
-          <div className="text-center py-12">
+          <div className="text-center py-16">
             <SearchIcon className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-slate-900 mb-2">Start searching</h3>
-            <p className="text-slate-600">
+            <h3 className="text-xl font-bold text-slate-900 mb-2">Start searching</h3>
+            <p className="text-slate-600 font-medium">
               Enter keywords to find your quotes and understanding entries
             </p>
           </div>
         )}
 
-        {!loading && results.map((result) => (
+        {!loading && results.map((result, index) => (
           <motion.div
             key={`${result.type}-${result.id}`}
-            className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow"
+            className="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md hover:border-slate-300 transition-all p-6"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.05 }}
           >
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
-              <div className="flex items-center space-x-3">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+              <div className="flex items-start space-x-4">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
                   result.type === 'quote' ? 'bg-blue-100' : 'bg-purple-100'
                 }`}>
                   {result.type === 'quote' ? (
@@ -246,20 +252,20 @@ const Search: React.FC = () => {
                   )}
                 </div>
                 <div>
-                  <h3 className="text-base sm:text-lg font-semibold text-slate-900">
+                  <h3 className="text-lg font-bold text-slate-900 mb-2">
                     {highlightText(result.title, searchTerm)}
                   </h3>
-                  <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-sm text-slate-500 mt-1">
+                  <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-sm text-slate-500 font-medium">
                     <span className="flex items-center">
-                      <Tag className="w-3 h-3 mr-1" />
+                      <Tag className="w-4 h-4 mr-1" />
                       {result.category}
                     </span>
                     <span className="flex items-center">
-                      <Languages className="w-3 h-3 mr-1" />
+                      <Languages className="w-4 h-4 mr-1" />
                       {result.language === 'en' ? 'English' : result.language}
                     </span>
                     <span className="flex items-center">
-                      <Calendar className="w-3 h-3 mr-1" />
+                      <Calendar className="w-4 h-4 mr-1" />
                       {new Date(result.created_at).toLocaleDateString()}
                     </span>
                     {result.word_count && (
@@ -269,7 +275,7 @@ const Search: React.FC = () => {
                 </div>
               </div>
               
-              <span className={`text-xs px-2 py-1 rounded-full ${
+              <span className={`text-xs px-3 py-1 rounded-full font-semibold flex-shrink-0 ${
                 result.type === 'quote' 
                   ? 'bg-blue-100 text-blue-800' 
                   : 'bg-purple-100 text-purple-800'
@@ -278,8 +284,8 @@ const Search: React.FC = () => {
               </span>
             </div>
 
-            <div className="prose prose-slate max-w-none">
-              <p className="text-slate-700 leading-relaxed">
+            <div className="text-slate-700 leading-relaxed font-medium">
+              <p>
                 {result.type === 'quote' ? (
                   <span className="italic">
                     "{highlightText(result.content, searchTerm)}"
@@ -300,7 +306,7 @@ const Search: React.FC = () => {
 
       {/* Results Summary */}
       {!loading && results.length > 0 && (
-        <div className="mt-8 text-center text-sm text-slate-600">
+        <div className="mt-8 text-center text-sm text-slate-600 font-semibold">
           Found {results.length} result{results.length !== 1 ? 's' : ''} for "{searchTerm}"
         </div>
       )}
