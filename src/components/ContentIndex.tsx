@@ -28,6 +28,8 @@ type IndexStats = {
   byType: { quotes: number; understanding: number };
   byLanguage: { [key: string]: number };
   byCategory: { [key: string]: number };
+  byCategoryQuotes: { [key: string]: number };
+  byCategoryUnderstanding: { [key: string]: number };
   byMonth: { [key: string]: number };
   recentItems: ContentItem[];
   popularTags: { [key: string]: number };
@@ -42,6 +44,8 @@ const ContentIndex: React.FC = () => {
     byType: { quotes: 0, understanding: 0 },
     byLanguage: {},
     byCategory: {},
+    byCategoryQuotes: {},
+    byCategoryUnderstanding: {},
     byMonth: {},
     recentItems: [],
     popularTags: {}
@@ -152,6 +156,8 @@ const ContentIndex: React.FC = () => {
     const byType = { quotes: 0, understanding: 0 };
     const byLanguage: { [key: string]: number } = {};
     const byCategory: { [key: string]: number } = {};
+    const byCategoryQuotes: { [key: string]: number } = {};
+    const byCategoryUnderstanding: { [key: string]: number } = {};
     const byMonth: { [key: string]: number } = {};
     const popularTags: { [key: string]: number } = {};
 
@@ -169,6 +175,11 @@ const ContentIndex: React.FC = () => {
       // Category stats
       item.categories.forEach(category => {
         byCategory[category] = (byCategory[category] || 0) + 1;
+        if (item.type === 'quote') {
+          byCategoryQuotes[category] = (byCategoryQuotes[category] || 0) + 1;
+        } else {
+          byCategoryUnderstanding[category] = (byCategoryUnderstanding[category] || 0) + 1;
+        }
       });
 
       // Month stats
@@ -196,6 +207,8 @@ const ContentIndex: React.FC = () => {
       byType,
       byLanguage,
       byCategory,
+      byCategoryQuotes,
+      byCategoryUnderstanding,
       byMonth,
       recentItems: items.slice(0, 10),
       popularTags: Object.fromEntries(
@@ -301,6 +314,8 @@ const ContentIndex: React.FC = () => {
       onCategoriesChange([]);
     };
 
+    const totalCount = Object.values(categories).reduce((sum, count) => sum + count, 0);
+
     return (
       <div className="flex flex-wrap gap-2 items-center">
         <span className="text-sm font-medium text-slate-700 mr-2">Categories:</span>
@@ -314,7 +329,7 @@ const ContentIndex: React.FC = () => {
               : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
           }`}
         >
-          All ({Object.values(categories).reduce((sum, count) => sum + count, 0)})
+          All ({totalCount})
         </button>
 
         {/* Individual category buttons */}
@@ -695,7 +710,7 @@ const ContentIndex: React.FC = () => {
               <CategoryRow
                 selectedCategories={selectedCategories}
                 onCategoriesChange={setSelectedCategories}
-                categories={stats.byCategory}
+                categories={stats.byCategoryQuotes}
                 colorScheme="blue"
               />
             </div>
@@ -805,7 +820,7 @@ const ContentIndex: React.FC = () => {
               <CategoryRow
                 selectedCategories={selectedCategories}
                 onCategoriesChange={setSelectedCategories}
-                categories={stats.byCategory}
+                categories={stats.byCategoryUnderstanding}
                 colorScheme="purple"
               />
             </div>
