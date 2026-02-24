@@ -4,14 +4,17 @@ import {
   Quote, 
   BookOpen, 
   TrendingUp, 
-  Calendar,
   Languages,
-  Target,
-  Award,
   Clock
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
+
+const stripHtml = (html: string): string => {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || '';
+};
 
 interface DashboardStats {
   totalQuotes: number;
@@ -85,7 +88,7 @@ const Dashboard: React.FC = () => {
         ...(recentQuotes?.map(q => ({
           id: q.id,
           type: 'quote' as const,
-          title: q.text.substring(0, 50) + '...',
+          title: stripHtml(q.text).substring(0, 50) + (q.text.length > 50 ? '...' : ''),
           created_at: q.created_at
         })) || []),
         ...(recentUnderstanding?.map(u => ({

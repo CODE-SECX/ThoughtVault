@@ -10,6 +10,17 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import RichTextDisplay from './RichTextDisplay';
 
+const stripHtml = (html: string): string => {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || '';
+};
+
+const truncateText = (text: string, maxLength: number): string => {
+  const stripped = stripHtml(text);
+  return stripped.length > maxLength ? stripped.substring(0, maxLength) + '...' : stripped;
+};
+
 type ContentItem = {
   id: string;
   type: 'quote' | 'understanding';
@@ -117,7 +128,7 @@ const ContentIndex: React.FC = () => {
         ...quotesWithCategories.map(quote => ({
           id: quote.id,
           type: 'quote' as const,
-          title: `"${quote.text.substring(0, 60)}${quote.text.length > 60 ? '...' : ''}"`,
+          title: `"${truncateText(quote.text, 60)}"`,
           content: quote.text,
           categories: quote.categories.map((cat: any) => cat.name),
           language: quote.language,

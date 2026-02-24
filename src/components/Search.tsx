@@ -12,6 +12,17 @@ import {
 import { supabase } from '../lib/supabase';
 import { Database } from '../lib/supabase';
 
+const stripHtml = (html: string): string => {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || '';
+};
+
+const truncateHtml = (html: string, maxLength: number): string => {
+  const stripped = stripHtml(html);
+  return stripped.length > maxLength ? stripped.substring(0, maxLength) + '...' : stripped;
+};
+
 type SearchResult = {
   id: string;
   type: 'quote' | 'understanding';
@@ -68,7 +79,7 @@ const Search: React.FC = () => {
           results.push({
             id: quote.id,
             type: 'quote',
-            title: `"${quote.text.substring(0, 100)}${quote.text.length > 100 ? '...' : ''}"`,
+            title: `"${truncateHtml(quote.text, 100)}"`,
             content: quote.text,
             category: quote.categories?.name || 'Unknown',
             language: quote.language,
@@ -288,13 +299,11 @@ const Search: React.FC = () => {
               <p>
                 {result.type === 'quote' ? (
                   <span className="italic">
-                    "{highlightText(result.content, searchTerm)}"
+                    "{highlightText(truncateHtml(result.content, 200), searchTerm)}"
                   </span>
                 ) : (
                   highlightText(
-                    result.content.length > 200 
-                      ? `${result.content.substring(0, 200)}...` 
-                      : result.content,
+                    truncateHtml(result.content, 200),
                     searchTerm
                   )
                 )}
