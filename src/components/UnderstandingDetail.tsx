@@ -17,6 +17,7 @@ import RichTextDisplay from './RichTextDisplay';
 import SmartCopyButton from './SmartCopyButton';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
+import krishnaIcon from '../assets/little_krishna.png';
 
 type UnderstandingRow = Database['public']['Tables']['understanding']['Row'];
 type CategoryRow = Database['public']['Tables']['categories']['Row'];
@@ -245,6 +246,33 @@ const UnderstandingDetail: React.FC = () => {
                 </div>
               </motion.div>
             )}
+
+            <motion.div 
+              className="flex items-center gap-4 py-6"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.25 }}
+            >
+              <img 
+                src={krishnaIcon} 
+                alt="Krishna" 
+                className="h-20 w-auto"
+              />
+              <span 
+                className="text-2xl uppercase"
+                style={{
+                  background: 'linear-gradient(135deg, #7c3aed 0%, #c026d3 50%, #f59e0b 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  fontFamily: 'Georgia, "Times New Roman", serif',
+                  fontWeight: 900,
+                  letterSpacing: '0.05em'
+                }}
+              >
+                Hare Krishna...
+              </span>
+            </motion.div>
 
             <motion.div 
               className="bg-white/70 backdrop-blur-sm rounded-3xl shadow-lg shadow-purple-100/50 border border-white/50 p-6 sm:p-8"
