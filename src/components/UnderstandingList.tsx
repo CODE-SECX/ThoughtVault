@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { 
   Plus, 
   Search, 
@@ -44,6 +45,7 @@ type UnderstandingWithCategories = Database['public']['Tables']['understanding']
 };
 
 const UnderstandingList: React.FC = () => {
+  const navigate = useNavigate();
   const [understanding, setUnderstanding] = useState<UnderstandingWithCategories[]>([]);
   const [categories, setCategories] = useState<Database['public']['Tables']['categories']['Row'][]>([]);
   const [loading, setLoading] = useState(true);
@@ -431,7 +433,7 @@ const UnderstandingList: React.FC = () => {
               exit={{ opacity: 0, y: -20 }}
               transition={{ delay: index * 0.03 }}
               layout
-              onClick={() => setSelectedEntry(entry)}
+              onClick={() => navigate(`/understanding/${entry.id}`)}
             >
               <div className="space-y-4">
                 {/* Header */}

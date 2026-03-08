@@ -10,6 +10,7 @@ import Search from './components/Search';
 import ContentIndex from './components/ContentIndex';
 import PublicQuote from './components/PublicQuote';
 import PublicUnderstanding from './components/PublicUnderstanding';
+import UnderstandingDetail from './components/UnderstandingDetail';
 
 const LayoutRoute: React.FC = () => (
   <Layout>
@@ -22,7 +23,7 @@ function App() {
     <Router>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
         <Routes>
-          <Route element={<LayoutRoute />}>
+<Route element={<LayoutRoute />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/quotes" element={<QuotesList />} />
             <Route path="/understanding" element={<UnderstandingList />} />
@@ -30,6 +31,7 @@ function App() {
             <Route path="/search" element={<Search />} />
             <Route path="/index" element={<ContentIndex />} />
           </Route>
+          <Route path="/understanding/:id" element={<UnderstandingDetail />} />
           {/* Public shareable routes (no Layout wrapper) */}
           <Route path="/p/quote/:id" element={<PublicQuote />} />
           <Route path="/p/understanding/:id" element={<PublicUnderstanding />} />
