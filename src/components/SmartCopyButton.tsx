@@ -1,91 +1,56 @@
 import React, { useState } from 'react';
-import { Copy, FileText, Code } from 'lucide-react';
+import { Copy, Check } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { htmlToPlainText, formatHtmlForCopy } from '../utils/htmlUtils';
+import { htmlToPlainText } from '../utils/htmlUtils';
 
 interface SmartCopyButtonProps {
   content: string;
-  type?: string;
+  label?: string;
   className?: string;
-  showDropdown?: boolean;
 }
 
+/**
+ * Copies HTML content as clean plain text — always strips tags.
+ */
 const SmartCopyButton: React.FC<SmartCopyButtonProps> = ({
   content,
-  type = 'content',
+  label,
   className = '',
-  showDropdown = true
 }) => {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  const copyToClipboard = async (text: string, format: 'plain' | 'html') => {
+  const handleCopy = async () => {
+    const plainText = htmlToPlainText(content);
+
     try {
-      const textToCopy = format === 'plain' ? htmlToPlainText(text) : formatHtmlForCopy(text);
-      await navigator.clipboard.writeText(textToCopy);
-      
-      const formatLabel = format === 'plain' ? 'Plain text' : 'HTML';
-      toast.success(`${type} copied as ${formatLabel.toLowerCase()}!`);
-      setIsDropdownOpen(false);
-    } catch (error) {
-      console.error('Failed to copy to clipboard:', error);
-      toast.error('Failed to copy to clipboard');
+      await navigator.clipboard.writeText(plainText);
+    } catch {
+      // Fallback for older browsers
+      const ta = document.createElement('textarea');
+      ta.value = plainText;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
     }
+
+    setCopied(true);
+    toast.success('Copied to clipboard');
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  // Single copy button (defaults to plain text)
-  if (!showDropdown) {
-    return (
-      <button
-        onClick={() => copyToClipboard(content, 'plain')}
-        className={`p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors ${className}`}
-        title="Copy as plain text"
-      >
-        <Copy className="w-4 h-4" />
-      </button>
-    );
-  }
-
-  // Dropdown copy button with options
   return (
-    <div className="relative">
-      <button
-        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-        className={`p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors ${className}`}
-        title="Copy options"
-      >
-        <Copy className="w-4 h-4" />
-      </button>
-
-      {isDropdownOpen && (
-        <>
-          {/* Backdrop to close dropdown */}
-          <div
-            className="fixed inset-0 z-10"
-            onClick={() => setIsDropdownOpen(false)}
-          />
-          
-          {/* Dropdown menu */}
-          <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-20">
-            <div className="py-1">
-              <button
-                onClick={() => copyToClipboard(content, 'plain')}
-                className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-              >
-                <FileText className="w-4 h-4 mr-2" />
-                Copy as Plain Text
-              </button>
-              <button
-                onClick={() => copyToClipboard(content, 'html')}
-                className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-              >
-                <Code className="w-4 h-4 mr-2" />
-                Copy as HTML
-              </button>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
+    <button
+      onClick={handleCopy}
+      className={`btn-icon ${className}`}
+      aria-label={label ? `Copy ${label}` : 'Copy as plain text'}
+      title="Copy as plain text"
+      style={{ color: copied ? 'var(--color-success)' : undefined }}
+    >
+      {copied ? <Check size={15} /> : <Copy size={15} />}
+    </button>
   );
 };
 

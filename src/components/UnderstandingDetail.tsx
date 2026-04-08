@@ -1,403 +1,238 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase, Database } from '../lib/supabase';
-import { 
-  ArrowLeft, 
-  Share2, 
-  Trash2, 
-  Edit3, 
-  Languages, 
-  Link as LinkIcon,
-  FileText,
-  Clock,
-  Tag,
-  BookOpen
-} from 'lucide-react';
+import { ArrowLeft, Share2, Trash2, Edit3, Languages, Link as LinkIcon, FileText, Calendar, Clock, Tag, BookOpen, Copy, Check, ExternalLink } from 'lucide-react';
 import RichTextDisplay from './RichTextDisplay';
-import SmartCopyButton from './SmartCopyButton';
-import { motion } from 'framer-motion';
+import RichTextEditor from './RichTextEditor';
 import toast from 'react-hot-toast';
-import krishnaIcon from '../assets/little_krishna.png';
+import { htmlToPlainText } from '../utils/htmlUtils';
 
-type UnderstandingRow = Database['public']['Tables']['understanding']['Row'];
-type CategoryRow = Database['public']['Tables']['categories']['Row'];
+type URow = Database['public']['Tables']['understanding']['Row'];
+type CRow = Database['public']['Tables']['categories']['Row'];
+interface UWC extends URow { categories: CRow[]; }
 
-interface UnderstandingWithCategories extends UnderstandingRow {
-  categories: CategoryRow[];
-}
-
-const languageNames: Record<string, string> = {
-  en: "English",
-  hi: "हिन्दी (Hindi)",
-  gu: "ગુજરાતી (Gujarati)",
-  sa: "संस्कृत (Sanskrit)",
-  es: "Español (Spanish)",
-  fr: "Français (French)",
-  de: "Deutsch (German)",
-  it: "Italiano (Italian)",
-  pt: "Português (Portuguese)",
-  ru: "Русский (Russian)",
-  zh: "中文 (Chinese)",
-  ja: "日本語 (Japanese)",
-  ko: "한국어 (Korean)"
+const LANG: Record<string, string> = {
+  en: 'English', hi: 'हिन्दी (Hindi)', gu: 'ગુજરાતી (Gujarati)', sa: 'Sanskrit',
+  es: 'Español', fr: 'Français', de: 'Deutsch', it: 'Italiano',
+  pt: 'Português', ru: 'Русский', zh: '中文', ja: '日本語', ko: '한국어',
 };
+
+const lbl = (t: string) => (
+  <label style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-text-secondary)', display: 'block', marginBottom: '0.4rem' }}>{t}</label>
+);
 
 const UnderstandingDetail: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [entry, setEntry] = useState<UnderstandingWithCategories | null>(null);
+  const [entry, setEntry]   = useState<UWC | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]   = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        if (!id) {
-          setError('Missing entry id');
-          return;
-        }
-        const { data, error } = await supabase
-          .from('understanding')
-          .select('*')
-          .eq('id', id)
-          .single();
-        if (error) throw error;
-        if (!data) {
-          setError('Entry not found');
-          return;
-        }
+  // edit state
+  const [editData, setEditData] = useState<Partial<UWC>>({});
+  const [allCats, setAllCats]   = useState<CRow[]>([]);
+  const [saving, setSaving]     = useState(false);
 
-        let categories: CategoryRow[] = [];
-        if (data.category_ids && data.category_ids.length > 0) {
-          const { data: cats } = await supabase
-            .from('categories')
-            .select('*')
-            .in('id', data.category_ids);
-          categories = cats || [];
-        }
+  useEffect(() => { load(); }, [id]);
 
-        setEntry({ ...data, categories });
-      } catch (e: unknown) {
-        const err = e as Error;
-        setError(err?.message || 'Failed to load entry');
-      } finally {
-        setLoading(false);
+  const load = async () => {
+    try {
+      setLoading(true); setError(null);
+      if (!id) { setError('Missing id'); return; }
+      const { data, error: e } = await supabase.from('understanding').select('*').eq('id', id).single();
+      if (e) throw e; if (!data) { setError('Not found'); return; }
+      let cats: CRow[] = [];
+      if (data.category_ids?.length) {
+        const { data: cd } = await supabase.from('categories').select('*').in('id', data.category_ids);
+        cats = cd || [];
       }
-    };
-    load();
-  }, [id]);
+      const { data: ac } = await supabase.from('categories').select('*').order('name');
+      setEntry({ ...data, categories: cats });
+      setAllCats(ac || []);
+      setEditData({ ...data });
+    } catch (e: any) { setError(e?.message || 'Failed to load'); }
+    finally { setLoading(false); }
+  };
 
   const handleDelete = async () => {
-    if (!entry) return;
-    if (!confirm('Are you sure you want to delete this understanding entry?')) return;
-
+    if (!entry || !confirm('Delete this entry?')) return;
     try {
-      const { error } = await supabase
-        .from('understanding')
-        .delete()
-        .eq('id', entry.id);
+      await supabase.from('understanding').delete().eq('id', entry.id);
+      toast.success('Deleted'); navigate('/understanding');
+    } catch { toast.error('Failed to delete'); }
+  };
 
+  const handleShare = async () => {
+    if (!entry) return;
+    const url = `${window.location.origin}/p/understanding/${entry.id}`;
+    if (navigator.share) { await navigator.share({ title: entry.title, url }); }
+    else { try { await navigator.clipboard.writeText(url); toast.success('Share link copied'); } catch { toast.error('Could not copy'); } }
+  };
+
+  const handleCopy = async () => {
+    if (!entry) return;
+    const text = htmlToPlainText(entry.description);
+    try { await navigator.clipboard.writeText(text); } catch { const a = document.createElement('textarea'); a.value = text; document.body.appendChild(a); a.select(); document.execCommand('copy'); document.body.removeChild(a); }
+    setCopied(true); toast.success('Copied'); setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSave = async () => {
+    if (!entry || !editData.title?.trim() || !editData.description?.trim()) { toast.error('Fill in required fields'); return; }
+    setSaving(true);
+    try {
+      const { error } = await supabase.from('understanding').update({ ...editData, updated_at: new Date().toISOString() }).eq('id', entry.id);
       if (error) throw error;
-
-      toast.success('Understanding entry deleted successfully');
-      navigate('/understanding');
-    } catch (error) {
-      console.error('Error deleting understanding:', error);
-      toast.error('Failed to delete understanding entry');
-    }
+      toast.success('Saved'); setEditing(false); load();
+    } catch { toast.error('Failed to save'); }
+    finally { setSaving(false); }
   };
 
-  const copyShareLink = async () => {
-    if (!entry) return;
-    try {
-      const url = `${window.location.origin}/p/understanding/${entry.id}`;
-      await navigator.clipboard.writeText(url);
-      toast.success('Share link copied!');
-    } catch (error) {
-      console.error('Failed to copy share link:', error);
-      toast.error('Failed to copy share link');
-    }
+  const toggleEditCat = (id: string) => {
+    const ids = editData.category_ids || [];
+    setEditData({ ...editData, category_ids: ids.includes(id) ? ids.filter(c => c !== id) : [...ids, id] });
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-purple-50 flex items-center justify-center">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="w-10 h-10 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-slate-500 font-medium">Loading...</p>
-        </div>
+  /* ── Loading ─────────────────────────────────────────── */
+  if (loading) return (
+    <div style={{ padding: 'clamp(1.5rem,4vw,2.5rem)', maxWidth: 780, margin: '0 auto' }}>
+      <div className="skeleton" style={{ height: 20, width: 120, marginBottom: '2rem' }} />
+      <div className="skeleton" style={{ height: 44, width: '60%', marginBottom: '1.5rem' }} />
+      <div className="skeleton" style={{ height: 240, borderRadius: 'var(--radius-lg)' }} />
+    </div>
+  );
+
+  /* ── Error ───────────────────────────────────────────── */
+  if (error || !entry) return (
+    <div style={{ padding: 'clamp(1.5rem,4vw,2.5rem)', maxWidth: 780, margin: '0 auto', textAlign: 'center', paddingTop: '4rem' }}>
+      <p style={{ fontFamily: 'var(--font-ui)', color: 'var(--color-text-secondary)', marginBottom: '1.5rem' }}>{error || 'Entry not found'}</p>
+      <button className="btn-primary" onClick={() => navigate('/understanding')}><ArrowLeft size={14} />Back to Understanding</button>
+    </div>
+  );
+
+  const isGu = entry.language === 'gu';
+
+  /* ── Edit mode ───────────────────────────────────────── */
+  if (editing) return (
+    <div style={{ padding: 'clamp(1.5rem,4vw,2.5rem)', maxWidth: 780, margin: '0 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem' }}>
+        <button className="btn-ghost" onClick={() => setEditing(false)} aria-label="Cancel edit"><ArrowLeft size={15} />Cancel</button>
+        <span style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>Editing entry</span>
       </div>
-    );
-  }
 
-  if (error || !entry) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-purple-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl border border-white/50 p-10 text-center">
-          <div className="w-20 h-20 bg-gradient-to-br from-slate-100 to-slate-200 rounded-2xl flex items-center justify-center mx-auto mb-6">
-            <FileText className="w-10 h-10 text-slate-400" />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div>{lbl('Title *')}<input type="text" className="input-field" value={editData.title || ''} onChange={e => setEditData({ ...editData, title: e.target.value })} /></div>
+        <div>{lbl('Description *')}<RichTextEditor value={editData.description || ''} onChange={v => setEditData({ ...editData, description: v, word_count: v.replace(/<[^>]+>/g, '').split(/\s+/).filter(Boolean).length })} /></div>
+        <div>
+          {lbl('Categories')}
+          <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '0.625rem', maxHeight: 130, overflowY: 'auto', background: 'var(--color-bg-muted)', display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+            {allCats.map(c => { const s = (editData.category_ids || []).includes(c.id); return <button key={c.id} type="button" className={`tag-pill${s ? ' active' : ''}`} onClick={() => toggleEditCat(c.id)} style={{ cursor: 'pointer' }}>{s && <Check size={10} />}{c.name}</button>; })}
           </div>
-          <p className="text-slate-700 font-medium text-lg mb-8">{error || 'Entry not found'}</p>
-          <button
-            onClick={() => navigate('/understanding')}
-            className="inline-flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg hover:shadow-purple-500/30 transition-all"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Understanding</span>
-          </button>
+        </div>
+        <div>{lbl('Real-life Connection')}<RichTextEditor value={editData.real_life_connection || ''} onChange={v => setEditData({ ...editData, real_life_connection: v })} /></div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(175px,1fr))', gap: '0.875rem' }}>
+          <div>{lbl('Reference')}<input type="text" className="input-field" value={editData.reference || ''} onChange={e => setEditData({ ...editData, reference: e.target.value })} /></div>
+          <div>{lbl('Page / Slok')}<input type="text" className="input-field" value={editData.page_slok_number || ''} onChange={e => setEditData({ ...editData, page_slok_number: e.target.value })} /></div>
+          <div>{lbl('Language')}
+            <select className="input-field" value={editData.language || 'en'} onChange={e => setEditData({ ...editData, language: e.target.value })} style={{ background: 'var(--color-bg-muted)' }}>
+              {Object.entries(LANG).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </div>
+          <div>{lbl('Date')}<input type="date" className="input-field" value={editData.date || ''} onChange={e => setEditData({ ...editData, date: e.target.value })} /></div>
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontFamily: 'var(--font-ui)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
+          <input type="checkbox" checked={editData.is_draft ?? false} onChange={e => setEditData({ ...editData, is_draft: e.target.checked })} style={{ accentColor: 'var(--color-accent)' }} />
+          Save as draft
+        </label>
+        <div style={{ display: 'flex', gap: '0.75rem', paddingTop: '0.5rem' }}>
+          <button className="btn-ghost" onClick={() => setEditing(false)}>Cancel</button>
+          <button className="btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</button>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
 
+  /* ── Read view ───────────────────────────────────────── */
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-purple-50">
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.4 }}
-      >
-        <div className="bg-white/80 backdrop-blur-md border-b border-slate-200/50 sticky top-0 z-20">
-          <div className="max-w-7xl mx-auto px-6 lg:px-10">
-            <div className="flex items-center justify-between h-16">
-              <button
-                onClick={() => navigate('/understanding')}
-                className="flex items-center space-x-2 text-slate-600 hover:text-purple-600 font-medium transition-colors group"
-              >
-                <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                <span>Back</span>
-              </button>
+    <div style={{ padding: 'clamp(1.5rem,4vw,2.5rem)', maxWidth: 780, margin: '0 auto' }}>
 
-              <div className="flex items-center gap-1">
-                <motion.button
-                  onClick={copyShareLink}
-                  className="p-2.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 transition-all rounded-xl"
-                  title="Copy share link"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <Share2 className="w-5 h-5" />
-                </motion.button>
-                <SmartCopyButton
-                  content={entry.description}
-                  type="Understanding"
-                  className="text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 transition-all rounded-xl p-2.5"
-                />
-                <motion.button
-                  onClick={() => navigate(`/understanding/${entry.id}/edit`)}
-                  className="p-2.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 transition-all rounded-xl"
-                  title="Edit entry"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <Edit3 className="w-5 h-5" />
-                </motion.button>
-                <motion.button
-                  onClick={handleDelete}
-                  className="p-2.5 text-slate-500 hover:text-red-600 hover:bg-red-50 transition-all rounded-xl"
-                  title="Delete entry"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <Trash2 className="w-5 h-5" />
-                </motion.button>
+      {/* Back + actions */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+        <button className="btn-ghost" onClick={() => navigate('/understanding')} aria-label="Back">
+          <ArrowLeft size={15} /> Back
+        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <Link to={`/p/understanding/${entry.id}`} target="_blank" rel="noopener" className="btn-ghost" style={{ textDecoration: 'none' }} aria-label="Public page">
+            <ExternalLink size={14} /> Public
+          </Link>
+          <button className="btn-ghost" onClick={handleCopy} aria-label="Copy content">
+            {copied ? <><Check size={14} />Copied</> : <><Copy size={14} />Copy</>}
+          </button>
+          <button className="btn-ghost" onClick={handleShare} aria-label="Share"><Share2 size={14} />Share</button>
+          <button className="btn-ghost" onClick={() => setEditing(true)} aria-label="Edit"><Edit3 size={14} />Edit</button>
+          <button className="btn-icon" onClick={handleDelete} aria-label="Delete" style={{ color: 'var(--color-error)' }}><Trash2 size={15} /></button>
+        </div>
+      </div>
+
+      {/* Article */}
+      <article>
+        {/* Meta tags */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem', marginBottom: '1.25rem' }}>
+          {entry.categories.map(c => <span key={c.id} className="tag-pill"><Tag size={10} />{c.name}</span>)}
+          <span className="tag-pill"><Languages size={10} />{LANG[entry.language] || entry.language}</span>
+          {entry.is_draft && <span className="tag-pill active">Draft</span>}
+        </div>
+
+        {/* Title */}
+        <h1 lang={isGu ? 'gu' : 'en'} style={{ fontFamily: isGu ? 'var(--font-gujarati)' : 'var(--font-display)', fontSize: 'clamp(1.6rem,4vw,2.25rem)', fontWeight: 600, color: 'var(--color-text-primary)', lineHeight: isGu ? 2.0 : 1.25, letterSpacing: '-0.02em', marginBottom: '1.75rem' }}>
+          {entry.title}
+        </h1>
+
+        {/* Stat bar */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', padding: '1rem 1.25rem', background: 'var(--color-bg-muted)', borderRadius: 'var(--radius-md)', marginBottom: '2rem', border: '1px solid var(--color-border)' }}>
+          {[
+            { icon: Calendar, label: 'Created', val: new Date(entry.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) },
+            ...(entry.updated_at !== entry.created_at ? [{ icon: Clock, label: 'Updated', val: new Date(entry.updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) }] : []),
+            ...(entry.word_count ? [{ icon: FileText, label: 'Words', val: entry.word_count.toLocaleString() }] : []),
+            ...(entry.reference ? [{ icon: BookOpen, label: 'Reference', val: entry.reference + (entry.page_slok_number ? ` (${entry.page_slok_number})` : '') }] : []),
+          ].map(({ icon: Icon, label, val }) => (
+            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Icon size={13} color="var(--color-text-muted)" aria-hidden />
+              <div>
+                <div style={{ fontFamily: 'var(--font-ui)', fontSize: '10px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
+                <div style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', fontWeight: 500 }}>{val}</div>
               </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Description */}
+        <div lang={isGu ? 'gu' : 'en'} style={{ fontFamily: isGu ? 'var(--font-gujarati)' : 'var(--font-body)', fontSize: isGu ? '1.15rem' : 'var(--text-base)', lineHeight: isGu ? 2.1 : 1.9, color: 'var(--color-text-primary)', marginBottom: '2rem' }}>
+          <RichTextDisplay content={entry.description} />
+        </div>
+
+        {/* Real-life connection */}
+        {entry.real_life_connection && (
+          <div style={{ background: 'var(--color-accent-light)', border: '1px solid var(--color-accent)', borderRadius: 'var(--radius-lg)', padding: '1.5rem', marginBottom: '2rem' }}>
+            <h3 style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-accent)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              <LinkIcon size={14} aria-hidden /> Real-life Connection
+            </h3>
+            <div lang={isGu ? 'gu' : 'en'} style={{ fontFamily: isGu ? 'var(--font-gujarati)' : 'var(--font-body)', fontSize: isGu ? '1.1rem' : 'var(--text-base)', lineHeight: isGu ? 2.0 : 1.85, color: 'var(--color-text-primary)' }}>
+              <RichTextDisplay content={entry.real_life_connection} />
             </div>
           </div>
+        )}
+
+        {/* Footer divider */}
+        <div style={{ height: 1, background: 'var(--color-border)', margin: '2rem 0' }} />
+
+        {/* Bottom nav */}
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <button className="btn-ghost" onClick={() => navigate('/understanding')}><ArrowLeft size={14} />All entries</button>
+          <button className="btn-ghost" onClick={() => setEditing(true)}><Edit3 size={14} />Edit this entry</button>
         </div>
-
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-10">
-          <motion.article
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <h1 className="text-4xl sm:text-5xl font-bold text-slate-900 mb-8 leading-tight">
-              {entry.title}
-            </h1>
-
-            <div className="bg-white/70 backdrop-blur-sm rounded-3xl shadow-lg shadow-purple-100/50 border border-white/50 p-8 sm:p-12 mb-8">
-              <div className="prose prose-lg prose-slate max-w-none">
-                <RichTextDisplay 
-                  content={entry.description}
-                  className="text-slate-700 leading-relaxed text-xl"
-                />
-              </div>
-            </div>
-
-            {entry.real_life_connection && (
-              <motion.div 
-                className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 rounded-3xl border border-blue-100/50 p-8 sm:p-12 mb-8"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.2 }}
-              >
-                <h3 className="font-bold text-blue-900 mb-6 flex items-center text-xl">
-                  <LinkIcon className="w-6 h-6 mr-3" />
-                  Real-life Connection
-                </h3>
-                <div className="prose prose-lg prose-blue max-w-none">
-                  <RichTextDisplay 
-                    content={entry.real_life_connection}
-                    className="text-blue-800 leading-relaxed"
-                  />
-                </div>
-              </motion.div>
-            )}
-
-            <motion.div 
-              className="flex items-center gap-4 py-6"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.25 }}
-            >
-              <img 
-                src={krishnaIcon} 
-                alt="Krishna" 
-                className="h-20 w-auto"
-              />
-              <span 
-                className="text-2xl uppercase"
-                style={{
-                  background: 'linear-gradient(135deg, #7c3aed 0%, #c026d3 50%, #f59e0b 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                  fontFamily: 'Georgia, "Times New Roman", serif',
-                  fontWeight: 900,
-                  letterSpacing: '0.05em'
-                }}
-              >
-                Hare Krishna...
-              </span>
-            </motion.div>
-
-            <motion.div 
-              className="bg-white/70 backdrop-blur-sm rounded-3xl shadow-lg shadow-purple-100/50 border border-white/50 p-6 sm:p-8"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
-            >
-              <div className="flex flex-wrap items-center gap-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl flex items-center justify-center">
-                    <Tag className="w-5 h-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Categories</p>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      {entry.categories.map(category => (
-                        <span 
-                          key={category.id}
-                          className="inline-flex items-center bg-purple-50 text-purple-700 px-3 py-1.5 rounded-lg text-sm font-semibold border border-purple-100"
-                        >
-                          {category.name}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="w-px h-12 bg-slate-200 hidden sm:block" />
-
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center">
-                    <Languages className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Language</p>
-                    <p className="text-slate-700 font-semibold">
-                      {languageNames[entry.language] || entry.language}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="w-px h-12 bg-slate-200 hidden sm:block" />
-
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-emerald-100 to-emerald-200 rounded-xl flex items-center justify-center">
-                    <Clock className="w-5 h-5 text-emerald-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Created</p>
-                    <p className="text-slate-700 font-semibold">
-                      {new Date(entry.created_at).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </p>
-                  </div>
-                </div>
-
-                {entry.updated_at !== entry.created_at && (
-                  <>
-                    <div className="w-px h-12 bg-slate-200 hidden sm:block" />
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-orange-100 to-orange-200 rounded-xl flex items-center justify-center">
-                        <Clock className="w-5 h-5 text-orange-600" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Updated</p>
-                        <p className="text-slate-700 font-semibold">
-                          {new Date(entry.updated_at).toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                          })}
-                        </p>
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                <div className="w-px h-12 bg-slate-200 hidden sm:block" />
-
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl flex items-center justify-center">
-                    <BookOpen className="w-5 h-5 text-slate-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Words</p>
-                    <p className="text-slate-700 font-semibold">{entry.word_count}</p>
-                  </div>
-                </div>
-
-                {entry.reference && (
-                  <>
-                    <div className="w-px h-12 bg-slate-200 hidden sm:block" />
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-amber-100 to-amber-200 rounded-xl flex items-center justify-center">
-                        <FileText className="w-5 h-5 text-amber-600" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Reference</p>
-                        <p className="text-slate-700 font-semibold">
-                          {entry.reference}
-                          {entry.page_slok_number && <span className="text-slate-500"> ({entry.page_slok_number})</span>}
-                        </p>
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {entry.is_draft && (
-                  <>
-                    <div className="w-px h-12 bg-slate-200 hidden sm:block" />
-                    <span className="inline-flex items-center bg-yellow-100 text-yellow-700 text-sm font-bold px-4 py-2 rounded-xl">
-                      Draft
-                    </span>
-                  </>
-                )}
-              </div>
-            </motion.div>
-          </motion.article>
-        </div>
-
-        <div className="h-20" />
-      </motion.div>
+      </article>
     </div>
   );
 };

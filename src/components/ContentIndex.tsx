@@ -1,1217 +1,303 @@
 import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  FileText, Grid, Quote, BookOpen, Tag, BarChart3, 
-  Search, Eye, Copy, X, ChevronRight, Languages, Trash2,
-  Calendar, Clock
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
-import toast from 'react-hot-toast';
+import { FileText, Quote, BookOpen, Tag, BarChart3, Search, Eye, X, Languages, Trash2, Calendar, Clock, Grid } from 'lucide-react';
 import RichTextDisplay from './RichTextDisplay';
+import toast from 'react-hot-toast';
+import { htmlToPlainText } from '../utils/htmlUtils';
 
-const stripHtml = (html: string): string => {
-  const tmp = document.createElement('div');
-  tmp.innerHTML = html;
-  return tmp.textContent || tmp.innerText || '';
-};
-
-const truncateText = (text: string, maxLength: number): string => {
-  const stripped = stripHtml(text);
-  return stripped.length > maxLength ? stripped.substring(0, maxLength) + '...' : stripped;
-};
+const strip = (h: string) => htmlToPlainText(h);
+const trunc = (h: string, n: number) => { const t = strip(h); return t.length > n ? t.slice(0, n) + '…' : t; };
 
 type ContentItem = {
-  id: string;
-  type: 'quote' | 'understanding';
-  title: string;
-  content: string;
-  categories: string[];
-  language: string;
-  created_at: string;
-  updated_at: string;
-  word_count?: number;
-  is_draft?: boolean;
+  id: string; type: 'quote' | 'understanding'; title: string; content: string;
+  categories: string[]; language: string; created_at: string; updated_at: string;
+  word_count?: number; is_draft?: boolean;
 };
+type ViewMode = 'overview' | 'list' | 'categories' | 'stats';
 
-type IndexStats = {
-  totalItems: number;
-  byType: { quotes: number; understanding: number };
-  byLanguage: { [key: string]: number };
-  byCategory: { [key: string]: number };
-  byCategoryQuotes: { [key: string]: number };
-  byCategoryUnderstanding: { [key: string]: number };
-  byMonth: { [key: string]: number };
-  recentItems: ContentItem[];
-  popularTags: { [key: string]: number };
-};
-
-type ViewMode = 'overview' | 'quotes' | 'understanding' | 'categories' | 'analytics';
+const LANG: Record<string, string> = { en: 'English', hi: 'Hindi', gu: 'Gujarati', sa: 'Sanskrit', es: 'Español', fr: 'Français', de: 'Deutsch' };
 
 const ContentIndex: React.FC = () => {
-  const [content, setContent] = useState<ContentItem[]>([]);
-  const [stats, setStats] = useState<IndexStats>({
-    totalItems: 0,
-    byType: { quotes: 0, understanding: 0 },
-    byLanguage: {},
-    byCategory: {},
-    byCategoryQuotes: {},
-    byCategoryUnderstanding: {},
-    byMonth: {},
-    recentItems: [],
-    popularTags: {}
-  });
+  const navigate = useNavigate();
+  const [items, setItems]     = useState<ContentItem[]>([]);
+  const [stats, setStats]     = useState({ totalQ: 0, totalU: 0, totalW: 0, byCat: {} as Record<string, number>, byLang: {} as Record<string, number>, recent: [] as ContentItem[] });
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<ViewMode>('overview');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedLanguage, setSelectedLanguage] = useState<string>('');
-  const [sortBy, setSortBy] = useState<'date' | 'title' | 'type'>('date');
-  const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
+  const [view, setView]       = useState<ViewMode>('overview');
+  const [search, setSearch]   = useState('');
+  const [selCats, setSelCats] = useState<string[]>([]);
+  const [selected, setSelected] = useState<ContentItem | null>(null);
 
-  useEffect(() => {
-    loadContentIndex();
-  }, []);
+  useEffect(() => { load(); }, []);
 
-  const loadContentIndex = async () => {
+  const load = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
+      const [{ data: qs }, { data: us }] = await Promise.all([
+        supabase.from('quotes').select('*').order('created_at', { ascending: false }),
+        supabase.from('understanding').select('*').order('updated_at', { ascending: false }),
+      ]);
 
-      // Load quotes
-      const { data: quotesData } = await supabase
-        .from('quotes')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const resolve = async (ids: string[]) => {
+        if (!ids?.length) return [];
+        const { data } = await supabase.from('categories').select('name').in('id', ids);
+        return data?.map((c: any) => c.name) || [];
+      };
 
-      // Load understanding entries
-      const { data: understandingData } = await supabase
-        .from('understanding')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const qItems: ContentItem[] = await Promise.all((qs || []).map(async q => ({
+        id: q.id, type: 'quote' as const, title: `"${trunc(q.text, 55)}"`,
+        content: q.text, categories: await resolve(q.category_ids || []),
+        language: q.language, created_at: q.created_at, updated_at: q.updated_at,
+      })));
 
-      // Load categories for quotes
-      const quotesWithCategories = await Promise.all(
-        (quotesData || []).map(async (quote) => {
-          const { data: categoryData, error: categoryError } = await supabase
-            .from('categories')
-            .select('*')
-            .in('id', quote.category_ids || []);
+      const uItems: ContentItem[] = await Promise.all((us || []).map(async e => ({
+        id: e.id, type: 'understanding' as const, title: e.title,
+        content: e.description, categories: await resolve(e.category_ids || []),
+        language: e.language, created_at: e.created_at, updated_at: e.updated_at,
+        word_count: e.word_count, is_draft: e.is_draft,
+      })));
 
-          if (categoryError) {
-            console.error('Error loading categories for quote:', categoryError);
-            return { ...quote, categories: [] };
-          }
+      const all = [...qItems, ...uItems];
+      setItems(all);
 
-          return { ...quote, categories: categoryData || [] };
-        })
-      );
+      const byCat: Record<string, number> = {};
+      const byLang: Record<string, number> = {};
+      all.forEach(i => { i.categories.forEach(c => { byCat[c] = (byCat[c] || 0) + 1; }); byLang[i.language] = (byLang[i.language] || 0) + 1; });
 
-      // Load categories for understanding entries
-      const understandingWithCategories = await Promise.all(
-        (understandingData || []).map(async (entry) => {
-          const { data: categoryData, error: categoryError } = await supabase
-            .from('categories')
-            .select('*')
-            .in('id', entry.category_ids || []);
-
-          if (categoryError) {
-            console.error('Error loading categories for understanding:', categoryError);
-            return { ...entry, categories: [] };
-          }
-
-          return { ...entry, categories: categoryData || [] };
-        })
-      );
-
-      // Process content items
-      const contentItems: ContentItem[] = [
-        ...quotesWithCategories.map(quote => ({
-          id: quote.id,
-          type: 'quote' as const,
-          title: `"${truncateText(quote.text, 60)}"`,
-          content: quote.text,
-          categories: quote.categories.map((cat: any) => cat.name),
-          language: quote.language,
-          created_at: quote.created_at,
-          updated_at: quote.updated_at
-        })),
-        ...understandingWithCategories.map(entry => ({
-          id: entry.id,
-          type: 'understanding' as const,
-          title: entry.title,
-          content: entry.description,
-          categories: entry.categories.map((cat: any) => cat.name),
-          language: entry.language,
-          created_at: entry.created_at,
-          updated_at: entry.updated_at,
-          word_count: entry.word_count,
-          is_draft: entry.is_draft
-        }))
-      ];
-
-      setContent(contentItems);
-
-      // Generate statistics
-      const stats = generateStats(contentItems);
-      setStats(stats);
-
-    } catch (error) {
-      console.error('Error loading content index:', error);
-      toast.error('Failed to load content index');
-    } finally {
-      setLoading(false);
-    }
+      setStats({
+        totalQ: qItems.length, totalU: uItems.length,
+        totalW: (us || []).reduce((s, e) => s + (e.word_count || 0), 0),
+        byCat, byLang,
+        recent: [...all].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 8),
+      });
+    } catch { toast.error('Failed to load'); }
+    finally { setLoading(false); }
   };
 
-  const generateStats = (items: ContentItem[]): IndexStats => {
-    const byType = { quotes: 0, understanding: 0 };
-    const byLanguage: { [key: string]: number } = {};
-    const byCategory: { [key: string]: number } = {};
-    const byCategoryQuotes: { [key: string]: number } = {};
-    const byCategoryUnderstanding: { [key: string]: number } = {};
-    const byMonth: { [key: string]: number } = {};
-    const popularTags: { [key: string]: number } = {};
-
-    items.forEach(item => {
-      // Type stats
-      if (item.type === 'quote') {
-        byType.quotes++;
-      } else {
-        byType.understanding++;
-      }
-
-      // Language stats
-      byLanguage[item.language] = (byLanguage[item.language] || 0) + 1;
-
-      // Category stats
-      item.categories.forEach(category => {
-        byCategory[category] = (byCategory[category] || 0) + 1;
-        if (item.type === 'quote') {
-          byCategoryQuotes[category] = (byCategoryQuotes[category] || 0) + 1;
-        } else {
-          byCategoryUnderstanding[category] = (byCategoryUnderstanding[category] || 0) + 1;
-        }
-      });
-
-      // Month stats
-      const monthKey = new Date(item.created_at).toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'short' 
-      });
-      byMonth[monthKey] = (byMonth[monthKey] || 0) + 1;
-
-      // Extract tags from content (simple word frequency)
-      if (item.content) {
-        const words = item.content.toLowerCase()
-          .replace(/[^\w\s]/g, '')
-          .split(/\s+/)
-          .filter(word => word.length > 3 && word.length < 20);
-        
-        words.forEach(word => {
-          popularTags[word] = (popularTags[word] || 0) + 1;
-        });
-      }
-    });
-
-    return {
-      totalItems: items.length,
-      byType,
-      byLanguage,
-      byCategory,
-      byCategoryQuotes,
-      byCategoryUnderstanding,
-      byMonth,
-      recentItems: items.slice(0, 10),
-      popularTags: Object.fromEntries(
-        Object.entries(popularTags)
-          .sort(([,a], [,b]) => b - a)
-          .slice(0, 20)
-      )
-    };
+  const handleDelete = async (item: ContentItem) => {
+    if (!confirm(`Delete this ${item.type}?`)) return;
+    try {
+      await supabase.from(item.type === 'quote' ? 'quotes' : 'understanding').delete().eq('id', item.id);
+      toast.success('Deleted'); setSelected(null); load();
+    } catch { toast.error('Failed'); }
   };
 
-  const filteredContent = content.filter(item => {
-    if (searchTerm && !item.title.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !item.content.toLowerCase().includes(searchTerm.toLowerCase())) {
-      return false;
-    }
-    if (selectedCategories.length > 0 && !selectedCategories.some(cat => item.categories.includes(cat))) {
-      return false;
-    }
-    if (selectedLanguage && item.language !== selectedLanguage) {
-      return false;
-    }
-    return true;
-  }).sort((a, b) => {
-    switch (sortBy) {
-      case 'title':
-        return a.title.localeCompare(b.title);
-      case 'type':
-        return a.type.localeCompare(b.type);
-      case 'date':
-      default:
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    }
+  const openItem = (item: ContentItem) => {
+    if (item.type === 'understanding') navigate(`/understanding/${item.id}`);
+    else setSelected(item);
+  };
+
+  const filtered = items.filter(i => {
+    const t = `${i.title} ${strip(i.content)} ${i.categories.join(' ')}`.toLowerCase();
+    return t.includes(search.toLowerCase()) && (!selCats.length || selCats.some(c => i.categories.includes(c)));
   });
 
-  const deleteCategory = async (categoryName: string) => {
-    try {
-      // First, get the category ID
-      const { data: categoryData, error: fetchError } = await supabase
-        .from('categories')
-        .select('id')
-        .eq('name', categoryName)
-        .single();
+  const allCatNames = Object.keys(stats.byCat);
 
-      if (fetchError) {
-        console.error('Error fetching category:', fetchError);
-        toast.error('Failed to find category');
-        return;
-      }
+  const Tab: React.FC<{ mode: ViewMode; icon: React.ReactNode; label: string }> = ({ mode, icon, label }) => (
+    <button onClick={() => setView(mode)} aria-pressed={view === mode}
+      style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.45rem 0.875rem', borderRadius: 'var(--radius-md)', border: `1px solid ${view === mode ? 'var(--color-accent)' : 'var(--color-border)'}`, background: view === mode ? 'var(--color-accent-light)' : 'var(--color-bg-card)', color: view === mode ? 'var(--color-accent)' : 'var(--color-text-secondary)', fontFamily: 'var(--font-ui)', fontSize: 'var(--text-sm)', fontWeight: 500, cursor: 'pointer' }}>
+      {icon}{label}
+    </button>
+  );
 
-      // Delete the category
-      const { error: deleteError } = await supabase
-        .from('categories')
-        .delete()
-        .eq('id', categoryData.id);
-
-      if (deleteError) {
-        console.error('Error deleting category:', deleteError);
-        toast.error('Failed to delete category');
-        return;
-      }
-
-      toast.success(`Category "${categoryName}" deleted successfully`);
-      
-      // Remove from selected categories if it was selected
-      setSelectedCategories(prev => prev.filter(cat => cat !== categoryName));
-      
-      // Reload the content index to refresh stats
-      loadContentIndex();
-    } catch (error) {
-      console.error('Error deleting category:', error);
-      toast.error('Failed to delete category');
-    }
+  const StatCard: React.FC<{ label: string; value: string | number; icon: React.ReactNode; to?: string }> = ({ label, value, icon, to }) => {
+    const inner = (
+      <div className="wk-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <div style={{ width: 34, height: 34, background: 'var(--color-accent-light)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{icon}</div>
+        <div>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: 600, color: 'var(--color-text-primary)', lineHeight: 1 }}>{value}</div>
+          <div style={{ fontFamily: 'var(--font-ui)', fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: '0.25rem' }}>{label}</div>
+        </div>
+      </div>
+    );
+    return to ? <Link to={to} style={{ textDecoration: 'none', display: 'block' }}>{inner}</Link> : <div>{inner}</div>;
   };
 
-  const CategoryRow: React.FC<{
-    selectedCategories: string[];
-    onCategoriesChange: (categories: string[]) => void;
-    categories: { [key: string]: number };
-    colorScheme?: 'purple' | 'blue';
-  }> = ({ selectedCategories, onCategoriesChange, categories, colorScheme = 'purple' }) => {
-    const colorClasses = {
-      purple: {
-        selected: 'bg-purple-600 text-white border-purple-600',
-        unselected: 'bg-white text-purple-600 border-purple-200 hover:bg-purple-50',
-        all: 'bg-slate-600 text-white border-slate-600'
-      },
-      blue: {
-        selected: 'bg-blue-600 text-white border-blue-600',
-        unselected: 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50',
-        all: 'bg-slate-600 text-white border-slate-600'
-      }
-    };
+  const ItemRow: React.FC<{ item: ContentItem; index: number }> = ({ item, index }) => (
+    <div className="wk-card" style={{ padding: '1.1rem 1.25rem', display: 'flex', alignItems: 'flex-start', gap: '0.875rem', cursor: 'pointer', opacity: 0, animation: `fadeUp 380ms ease ${index * 35}ms forwards` }}
+      onClick={() => openItem(item)}>
+      <div style={{ width: 34, height: 34, background: 'var(--color-accent-light)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        {item.type === 'quote' ? <Quote size={14} color="var(--color-accent)" /> : <BookOpen size={14} color="var(--color-accent)" />}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <h3 style={{ fontFamily: item.type === 'quote' ? 'var(--font-display)' : 'var(--font-ui)', fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)', fontStyle: item.type === 'quote' ? 'italic' : 'normal', marginBottom: '0.3rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {item.title}
+        </h3>
+        <div style={{ fontFamily: 'var(--font-ui)', fontSize: '11px', color: 'var(--color-text-secondary)', lineHeight: 1.5, marginBottom: '0.4rem', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          <RichTextDisplay content={item.content.length > 100 ? item.content.slice(0, 100) + '…' : item.content} />
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', alignItems: 'center' }}>
+          {item.categories.slice(0, 3).map(c => <span key={c} className="tag-pill">{c}</span>)}
+          <span style={{ fontFamily: 'var(--font-ui)', fontSize: '10px', color: 'var(--color-text-muted)' }}>
+            · {LANG[item.language] || item.language} · {new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </span>
+          {item.is_draft && <span className="tag-pill active" style={{ fontSize: '10px' }}>Draft</span>}
+        </div>
+      </div>
+      <button className="btn-icon" onClick={e => { e.stopPropagation(); setSelected(item); }} aria-label="Quick view" title="Quick view" style={{ flexShrink: 0 }}>
+        <Eye size={14} />
+      </button>
+    </div>
+  );
 
-    const toggleCategory = (category: string) => {
-      if (selectedCategories.includes(category)) {
-        onCategoriesChange(selectedCategories.filter(c => c !== category));
-      } else {
-        onCategoriesChange([...selectedCategories, category]);
-      }
-    };
-
-    const clearAllCategories = () => {
-      onCategoriesChange([]);
-    };
-
-    const totalCount = Object.values(categories).reduce((sum, count) => sum + count, 0);
-
+  const BarChart: React.FC<{ data: Record<string, number>; title: string }> = ({ data, title }) => {
+    const max = Math.max(...Object.values(data), 1);
     return (
-      <div className="flex flex-wrap gap-2 items-center">
-        <span className="text-sm font-medium text-slate-700 mr-2">Categories:</span>
-        
-        {/* All Categories button */}
-        <button
-          onClick={clearAllCategories}
-          className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-            selectedCategories.length === 0 
-              ? colorClasses[colorScheme].all
-              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-          }`}
-        >
-          All ({totalCount})
-        </button>
-
-        {/* Individual category buttons */}
-        {Object.entries(categories).map(([category, count]) => (
-          <button
-            key={category}
-            onClick={() => toggleCategory(category)}
-            className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-              selectedCategories.includes(category)
-                ? colorClasses[colorScheme].selected
-                : colorClasses[colorScheme].unselected
-            }`}
-          >
-            {category} ({count})
-          </button>
+      <div className="wk-card" style={{ padding: '1.5rem' }}>
+        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '1.25rem' }}>{title}</h3>
+        {Object.entries(data).sort((a, b) => b[1] - a[1]).map(([k, v]) => (
+          <div key={k} style={{ marginBottom: '0.75rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+              <span style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', fontWeight: 500 }}>{LANG[k] || k}</span>
+              <span style={{ fontFamily: 'var(--font-ui)', fontSize: '11px', color: 'var(--color-text-muted)' }}>{v}</span>
+            </div>
+            <div style={{ height: 5, background: 'var(--color-border)', borderRadius: 3, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${(v / max) * 100}%`, background: 'var(--color-accent)', borderRadius: 3, transition: 'width 600ms ease' }} />
+            </div>
+          </div>
         ))}
       </div>
     );
   };
 
-  const ViewModeButton: React.FC<{
-    mode: ViewMode;
-    icon: React.ReactNode;
-    label: string;
-    count?: number;
-  }> = ({ mode, icon, label, count }) => (
-    <button
-      onClick={() => setViewMode(mode)}
-      className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-        viewMode === mode
-          ? 'bg-purple-600 text-white'
-          : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
-      }`}
-    >
-      {icon}
-      <span className="font-medium">{label}</span>
-      {count !== undefined && (
-        <span className={`text-xs px-2 py-1 rounded-full ${
-          viewMode === mode ? 'bg-purple-500' : 'bg-slate-200'
-        }`}>
-          {count}
-        </span>
-      )}
-    </button>
-  );
-
-  const StatCard: React.FC<{
-    icon: React.ReactNode;
-    title: string;
-    value: string | number;
-    subtitle?: string;
-    onClick?: () => void;
-  }> = ({ icon, title, value, subtitle, onClick }) => (
-    <motion.div
-      className={`bg-white rounded-xl shadow-sm border border-slate-200 ${
-        onClick ? 'cursor-pointer hover:shadow-md hover:border-slate-300' : ''
-      } transition-all p-6`}
-      whileHover={onClick ? { y: -4 } : {}}
-      onClick={onClick}
-    >
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-widest font-semibold text-slate-500 mb-1">{title}</p>
-          <p className="text-3xl font-bold text-slate-900 mb-1">{value}</p>
-          {subtitle && <p className="text-sm text-slate-500 font-medium">{subtitle}</p>}
-        </div>
-        <div className="flex items-center justify-center">
-          <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-            {icon}
-          </div>
-          {onClick && <ChevronRight className="w-4 h-4 text-slate-400 -ml-2" />}
-        </div>
-      </div>
-    </motion.div>
-  );
-
-  if (loading) {
+  /* Detail panel for quote quick-view */
+  const QuickView = () => {
+    if (!selected) return null;
     return (
-      <div className="p-4 sm:p-6 lg:p-8">
-        <div className="animate-pulse space-y-6">
-          <div className="h-12 bg-slate-200 rounded w-1/3"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} className="h-24 bg-slate-200 rounded-lg"></div>
-            ))}
+      <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+        onClick={() => setSelected(null)} role="dialog" aria-modal>
+        <div style={{ background: 'var(--color-bg-card)', borderRadius: 'var(--radius-xl)', width: '100%', maxWidth: 600, maxHeight: '85vh', overflowY: 'auto', boxShadow: 'var(--shadow-lg)' }} onClick={e => e.stopPropagation()}>
+          <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: 'var(--color-bg-card)', zIndex: 1 }}>
+            <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
+              {selected.categories.map(c => <span key={c} className="tag-pill">{c}</span>)}
+              <span className="tag-pill">{selected.type === 'quote' ? 'Quote' : 'Understanding'}</span>
+            </div>
+            <div style={{ display: 'flex', gap: '0.375rem' }}>
+              {selected.type === 'understanding' && (
+                <button className="btn-ghost" style={{ fontSize: '12px', padding: '0.3rem 0.6rem', minHeight: 'auto' }} onClick={() => { navigate(`/understanding/${selected.id}`); setSelected(null); }}>Open</button>
+              )}
+              <button className="btn-icon" onClick={() => handleDelete(selected)} style={{ color: 'var(--color-error)' }} aria-label="Delete"><Trash2 size={14} /></button>
+              <button className="btn-icon" onClick={() => setSelected(null)} aria-label="Close"><X size={17} /></button>
+            </div>
+          </div>
+          <div style={{ padding: '1.5rem' }}>
+            {selected.type === 'understanding' && (
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '1.25rem', letterSpacing: '-0.01em' }}>{selected.title}</h2>
+            )}
+            <div style={{ fontFamily: selected.type === 'quote' ? 'var(--font-display)' : 'var(--font-body)', fontSize: selected.type === 'quote' ? 'var(--text-quote)' : 'var(--text-base)', lineHeight: selected.type === 'quote' ? 1.7 : 1.85, fontStyle: selected.type === 'quote' ? 'italic' : 'normal', color: 'var(--color-text-primary)' }}>
+              <RichTextDisplay content={selected.content} />
+            </div>
+            <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--color-border)', display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+              <span style={{ fontFamily: 'var(--font-ui)', fontSize: '11px', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Calendar size={11} />{new Date(selected.created_at).toLocaleDateString()}</span>
+              {selected.updated_at !== selected.created_at && <span style={{ fontFamily: 'var(--font-ui)', fontSize: '11px', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><Clock size={11} />Updated {new Date(selected.updated_at).toLocaleDateString()}</span>}
+              {selected.word_count && <span style={{ fontFamily: 'var(--font-ui)', fontSize: '11px', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><FileText size={11} />{selected.word_count}w</span>}
+            </div>
           </div>
         </div>
       </div>
     );
-  }
+  };
+
+  if (loading) return (
+    <div className="page-wrap-wide">
+      <div className="skeleton" style={{ height: 40, width: 220, marginBottom: '1.5rem' }} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: '1rem', marginBottom: '2rem' }}>
+        {[1,2,3,4].map(i => <div key={i} className="skeleton" style={{ height: 100, borderRadius: 'var(--radius-lg)' }} />)}
+      </div>
+      {[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: 90, borderRadius: 'var(--radius-lg)', marginBottom: '0.75rem' }} />)}
+    </div>
+  );
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8">
-      {/* Header */}
-      <div className="mb-12">
-        <h1 className="text-4xl font-bold text-slate-900 mb-2 flex items-center">
-          <FileText className="w-10 h-10 mr-4 text-purple-600" />
-          Content Index
-        </h1>
-        <p className="text-lg text-slate-600 font-medium">
-          Discover and navigate your knowledge vault efficiently
-        </p>
+    <div className="page-wrap-wide">
+      <div style={{ marginBottom: '1.75rem' }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.75rem,4vw,2.4rem)', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.02em', marginBottom: '0.2rem' }}>Content Index</h1>
+        <p style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>{items.length} items in your knowledge vault</p>
       </div>
 
-      {/* View Mode Selector */}
-      <div className="mb-8 flex flex-wrap gap-3">
-        <ViewModeButton
-          mode="overview"
-          icon={<Grid className="w-4 h-4" />}
-          label="Overview"
-          count={stats.totalItems}
-        />
-        <ViewModeButton
-          mode="quotes"
-          icon={<Quote className="w-4 h-4" />}
-          label="Quotes"
-          count={stats.byType.quotes}
-        />
-        <ViewModeButton
-          mode="understanding"
-          icon={<BookOpen className="w-4 h-4" />}
-          label="Understanding"
-          count={stats.byType.understanding}
-        />
-        <ViewModeButton
-          mode="categories"
-          icon={<Tag className="w-4 h-4" />}
-          label="Categories"
-          count={Object.keys(stats.byCategory).length}
-        />
-        <ViewModeButton
-          mode="analytics"
-          icon={<BarChart3 className="w-4 h-4" />}
-          label="Analytics"
-        />
+      {/* View tabs */}
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+        <Tab mode="overview" icon={<Grid size={13} aria-hidden />} label="Overview" />
+        <Tab mode="list" icon={<FileText size={13} aria-hidden />} label="All items" />
+        <Tab mode="categories" icon={<Tag size={13} aria-hidden />} label="Categories" />
+        <Tab mode="stats" icon={<BarChart3 size={13} aria-hidden />} label="Stats" />
       </div>
 
-      <AnimatePresence mode="wait">
-        {viewMode === 'overview' && (
-          <motion.div
-            key="overview"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="space-y-8"
-          >
-            {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <StatCard
-                icon={<BookOpen className="w-6 h-6 text-purple-600" />}
-                title="Total Items"
-                value={stats.totalItems}
-                subtitle="All content"
-              />
-              <StatCard
-                icon={<Quote className="w-6 h-6 text-blue-600" />}
-                title="Quotes"
-                value={stats.byType.quotes}
-                onClick={() => setViewMode('quotes')}
-              />
-              <StatCard
-                icon={<BookOpen className="w-6 h-6 text-green-600" />}
-                title="Understanding"
-                value={stats.byType.understanding}
-                onClick={() => setViewMode('understanding')}
-              />
-              <StatCard
-                icon={<Languages className="w-6 h-6 text-orange-600" />}
-                title="Languages"
-                value={Object.keys(stats.byLanguage).length}
-              />
-            </div>
-
-            {/* Search and Filters */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
-              {/* Search, Language, and Sort Row */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="relative">
-                  <Search className="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search content..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-base font-medium"
-                  />
-                </div>
-                <select
-                  value={selectedLanguage}
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent font-medium text-slate-900"
-                >
-                  <option value="">All Languages</option>
-                  {Object.keys(stats.byLanguage).map(lang => (
-                    <option key={lang} value={lang}>
-                      {lang === 'en' ? 'English' : 
-                       lang === 'hi' ? 'हिन्दी (Hindi)' :
-                       lang === 'gu' ? 'ગુજરાતી (Gujarati)' :
-                       lang === 'sa' ? 'संस्कृत (Sanskrit)' :
-                       lang === 'es' ? 'Español (Spanish)' :
-                       lang === 'fr' ? 'Français (French)' :
-                       lang === 'de' ? 'Deutsch (German)' :
-                       lang === 'it' ? 'Italiano (Italian)' :
-                       lang === 'pt' ? 'Português (Portuguese)' :
-                       lang === 'ru' ? 'Русский (Russian)' :
-                       lang === 'zh' ? '中文 (Chinese)' :
-                       lang === 'ja' ? '日本語 (Japanese)' :
-                       lang === 'ko' ? '한국어 (Korean)' :
-                       lang.charAt(0).toUpperCase() + lang.slice(1)}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as 'date' | 'title' | 'type')}
-                  className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent font-medium text-slate-900"
-                >
-                  <option value="date">Sort by Date</option>
-                  <option value="title">Sort by Title</option>
-                  <option value="type">Sort by Type</option>
-                </select>
+      {/* ── Overview ─────────────────────────────────────── */}
+      {view === 'overview' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(145px,1fr))', gap: '0.875rem' }}>
+            <StatCard label="Quotes" value={stats.totalQ} icon={<Quote size={15} color="var(--color-accent)" />} to="/quotes" />
+            <StatCard label="Learnings" value={stats.totalU} icon={<BookOpen size={15} color="var(--color-accent)" />} to="/understanding" />
+            <StatCard label="Words" value={stats.totalW.toLocaleString()} icon={<FileText size={15} color="var(--color-accent)" />} />
+            <StatCard label="Categories" value={allCatNames.length} icon={<Tag size={15} color="var(--color-accent)" />} to="/categories" />
+          </div>
+          {stats.recent.length > 0 && (
+            <div>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '1rem' }}>Recently Updated</h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                {stats.recent.map((item, i) => <ItemRow key={item.id} item={item} index={i} />)}
               </div>
-              
-              {/* Categories Row */}
-              <CategoryRow
-                selectedCategories={selectedCategories}
-                onCategoriesChange={setSelectedCategories}
-                categories={stats.byCategory}
-                colorScheme="purple"
-              />
             </div>
+          )}
+        </div>
+      )}
 
-            {/* Content List */}
-            <div className="space-y-4">
-              {filteredContent.map((item, index) => (
-                <motion.div
-                  key={`${item.type}-${item.id}`}
-                  className="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md hover:border-slate-300 transition-all p-6"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.03 }}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start space-x-4 flex-1">
-                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        item.type === 'quote' ? 'bg-blue-100' : 'bg-purple-100'
-                      }`}>
-                        {item.type === 'quote' ? (
-                          <Quote className="w-6 h-6 text-blue-600" />
-                        ) : (
-                          <BookOpen className="w-6 h-6 text-purple-600" />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-bold text-slate-900 mb-2 text-lg">{item.title}</h3>
-                        <div className="text-sm text-slate-600 mb-3 line-clamp-2 leading-relaxed font-medium">
-                          <RichTextDisplay content={item.content.length > 150 
-                            ? `${item.content.substring(0, 150)}...` 
-                            : item.content} />
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-semibold">
-                          {item.categories.map(category => (
-                            <span key={category} className="bg-slate-100 px-3 py-1 rounded-full">
-                              {category}
-                            </span>
-                          ))}
-                          <span className="text-slate-400">•</span>
-                          <span>{item.language === 'en' ? 'English' : item.language}</span>
-                          <span className="text-slate-400">•</span>
-                          <span>{new Date(item.created_at).toLocaleDateString()}</span>
-                          {item.word_count && (
-                            <>
-                              <span className="text-slate-400">•</span>
-                              <span>{item.word_count} words</span>
-                            </>
-                          )}
-                          {item.is_draft && (
-                            <>
-                              <span className="text-slate-400">•</span>
-                              <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
-                                Draft
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setSelectedItem(item)}
-                      className="p-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors flex-shrink-0"
-                      title="View details"
-                    >
-                      <Eye className="w-5 h-5" />
-                    </button>
-                  </div>
-                </motion.div>
-              ))}
+      {/* ── All items ────────────────────────────────────── */}
+      {view === 'list' && (
+        <div>
+          <div className="wk-card" style={{ padding: '1rem', marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ position: 'relative' }}>
+              <Search size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', pointerEvents: 'none' }} aria-hidden />
+              <input type="search" className="input-field" style={{ paddingLeft: '2.1rem' }} placeholder="Search all content…" value={search} onChange={e => setSearch(e.target.value)} aria-label="Search" />
             </div>
-
-            {filteredContent.length === 0 && (
-              <div className="text-center py-16">
-                <Search className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-slate-900 mb-2">No content found</h3>
-                <p className="text-slate-600 font-medium">
-                  Try adjusting your search terms or filters
-                </p>
+            {allCatNames.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+                {allCatNames.map(c => { const a = selCats.includes(c); return <button key={c} className={`tag-pill${a ? ' active' : ''}`} onClick={() => setSelCats(a ? selCats.filter(x => x !== c) : [...selCats, c])} style={{ cursor: 'pointer' }}>{c}</button>; })}
+                {selCats.length > 0 && <button className="btn-ghost" style={{ padding: '0.15rem 0.5rem', minHeight: 'auto', fontSize: '11px' }} onClick={() => setSelCats([])}>Clear</button>}
               </div>
             )}
-          </motion.div>
-        )}
+          </div>
+          {(search || selCats.length) > 0 && <p style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginBottom: '0.875rem' }}>{filtered.length} result{filtered.length !== 1 ? 's' : ''}</p>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+            {filtered.map((item, i) => <ItemRow key={item.id} item={item} index={i} />)}
+          </div>
+          {filtered.length === 0 && <div className="wk-card" style={{ textAlign: 'center', padding: '3rem' }}><p style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>No items match</p></div>}
+        </div>
+      )}
 
-        {/* Quotes View */}
-        {viewMode === 'quotes' && (
-          <motion.div
-            key="quotes"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="space-y-6"
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-slate-900">Quotes Collection</h2>
-              <div className="text-sm text-slate-500">
-                {content.filter(item => item.type === 'quote').length} quotes
+      {/* ── Categories ───────────────────────────────────── */}
+      {view === 'categories' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>{allCatNames.length} Categor{allCatNames.length !== 1 ? 'ies' : 'y'}</h2>
+            <Link to="/categories" style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-accent)', textDecoration: 'none' }}>Manage →</Link>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: '0.875rem' }}>
+            {Object.entries(stats.byCat).sort((a, b) => b[1] - a[1]).map(([cat, count], i) => (
+              <div key={cat} className="wk-card" style={{ padding: '1.25rem', cursor: 'pointer', opacity: 0, animation: `fadeUp 380ms ease ${i * 45}ms forwards` }}
+                onClick={() => { setSelCats([cat]); setView('list'); }}>
+                <div style={{ width: 34, height: 34, background: 'var(--color-accent-light)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.75rem' }}>
+                  <Tag size={15} color="var(--color-accent)" />
+                </div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '0.2rem' }}>{cat}</div>
+                <div style={{ fontFamily: 'var(--font-ui)', fontSize: '11px', color: 'var(--color-text-muted)' }}>{count} item{count !== 1 ? 's' : ''}</div>
               </div>
-            </div>
+            ))}
+          </div>
+        </div>
+      )}
 
-            {/* Search and Filters for Quotes */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
-              {/* Search, Language, and Sort Row */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="relative">
-                  <Search className="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search quotes..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-base font-medium"
-                  />
-                </div>
-                <select
-                  value={selectedLanguage}
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent font-medium text-slate-900"
-                >
-                  <option value="">All Languages</option>
-                  {Object.keys(stats.byLanguage).map(lang => (
-                    <option key={lang} value={lang}>
-                      {lang === 'en' ? 'English' : 
-                       lang === 'hi' ? 'हिन्दी (Hindi)' :
-                       lang === 'gu' ? 'ગુજરાતી (Gujarati)' :
-                       lang === 'sa' ? 'संस्कृत (Sanskrit)' :
-                       lang === 'es' ? 'Español (Spanish)' :
-                       lang === 'fr' ? 'Français (French)' :
-                       lang === 'de' ? 'Deutsch (German)' :
-                       lang === 'it' ? 'Italiano (Italian)' :
-                       lang === 'pt' ? 'Português (Portuguese)' :
-                       lang === 'ru' ? 'Русский (Russian)' :
-                       lang === 'zh' ? '中文 (Chinese)' :
-                       lang === 'ja' ? '日本語 (Japanese)' :
-                       lang === 'ko' ? '한국어 (Korean)' :
-                       lang.charAt(0).toUpperCase() + lang.slice(1)}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as 'date' | 'title' | 'type')}
-                  className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent font-medium text-slate-900"
-                >
-                  <option value="date">Sort by Date</option>
-                  <option value="title">Sort by Title</option>
-                </select>
-              </div>
-              
-              {/* Categories Row */}
-              <CategoryRow
-                selectedCategories={selectedCategories}
-                onCategoriesChange={setSelectedCategories}
-                categories={stats.byCategoryQuotes}
-                colorScheme="blue"
-              />
-            </div>
-            
-            <div className="grid gap-4">
-              {filteredContent.filter(item => item.type === 'quote').map((item) => (
-                <motion.div
-                  key={item.id}
-                  className="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-pointer p-6"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  onClick={() => setSelectedItem(item)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start space-x-3 flex-1">
-                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <Quote className="w-6 h-6 text-blue-600" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="text-slate-700 italic mb-2">
-                          <RichTextDisplay content={item.content} />
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                          {item.categories.map(category => (
-                            <span key={category} className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                              {category}
-                            </span>
-                          ))}
-                          <span>{item.language === 'en' ? 'English' : item.language}</span>
-                          <span>{new Date(item.created_at).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-        )}
+      {/* ── Stats ────────────────────────────────────────── */}
+      {view === 'stats' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: '1.25rem' }}>
+          <BarChart data={stats.byLang} title="Languages" />
+          <BarChart data={Object.fromEntries(Object.entries(stats.byCat).sort((a, b) => b[1] - a[1]).slice(0, 10))} title="Top Categories" />
+        </div>
+      )}
 
-        {/* Understanding View */}
-        {viewMode === 'understanding' && (
-          <motion.div
-            key="understanding"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="space-y-6"
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-slate-900">Understanding Entries</h2>
-              <div className="text-sm text-slate-500">
-                {content.filter(item => item.type === 'understanding').length} entries
-              </div>
-            </div>
-
-            {/* Search and Filters for Understanding */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
-              {/* Search, Language, and Sort Row */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="relative">
-                  <Search className="w-5 h-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search understanding..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-base font-medium"
-                  />
-                </div>
-                <select
-                  value={selectedLanguage}
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent font-medium text-slate-900"
-                >
-                  <option value="">All Languages</option>
-                  {Object.keys(stats.byLanguage).map(lang => (
-                    <option key={lang} value={lang}>
-                      {lang === 'en' ? 'English' : 
-                       lang === 'hi' ? 'हिन्दी (Hindi)' :
-                       lang === 'gu' ? 'ગુજરાતી (Gujarati)' :
-                       lang === 'sa' ? 'संस्कृत (Sanskrit)' :
-                       lang === 'es' ? 'Español (Spanish)' :
-                       lang === 'fr' ? 'Français (French)' :
-                       lang === 'de' ? 'Deutsch (German)' :
-                       lang === 'it' ? 'Italiano (Italian)' :
-                       lang === 'pt' ? 'Português (Portuguese)' :
-                       lang === 'ru' ? 'Русский (Russian)' :
-                       lang === 'zh' ? '中文 (Chinese)' :
-                       lang === 'ja' ? '日本語 (Japanese)' :
-                       lang === 'ko' ? '한국어 (Korean)' :
-                       lang.charAt(0).toUpperCase() + lang.slice(1)}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as 'date' | 'title' | 'type')}
-                  className="px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent font-medium text-slate-900"
-                >
-                  <option value="date">Sort by Date</option>
-                  <option value="title">Sort by Title</option>
-                </select>
-              </div>
-              
-              {/* Categories Row */}
-              <CategoryRow
-                selectedCategories={selectedCategories}
-                onCategoriesChange={setSelectedCategories}
-                categories={stats.byCategoryUnderstanding}
-                colorScheme="purple"
-              />
-            </div>
-            
-            <div className="grid gap-4">
-              {filteredContent.filter(item => item.type === 'understanding').map((item) => (
-                <motion.div
-                  key={item.id}
-                  className="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-pointer p-6"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  onClick={() => setSelectedItem(item)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start space-x-3 flex-1">
-                      <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                        <BookOpen className="w-6 h-6 text-purple-600" />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-slate-900 mb-1">{item.title}</h3>
-                        <div className="text-sm text-slate-600 mb-2 line-clamp-2">
-                          <RichTextDisplay content={item.content.length > 150 
-                            ? `${item.content.substring(0, 150)}...` 
-                            : item.content} />
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                          {item.categories.map(category => (
-                            <span key={category} className="bg-purple-100 text-purple-800 px-2 py-1 rounded">
-                              {category}
-                            </span>
-                          ))}
-                          <span>{item.language === 'en' ? 'English' : item.language}</span>
-                          <span>{new Date(item.created_at).toLocaleDateString()}</span>
-                          {item.word_count && <span>{item.word_count} words</span>}
-                          {item.is_draft && (
-                            <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
-                              Draft
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setSelectedItem(item)}
-                      className="text-purple-600 hover:text-purple-700 p-2 rounded-lg hover:bg-purple-50 transition-colors"
-                      title="View details"
-                    >
-                      <Eye className="w-5 h-5" />
-                    </button>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-        )}
-
-        {/* Categories View */}
-        {viewMode === 'categories' && (
-          <motion.div
-            key="categories"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="space-y-6"
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-slate-900 flex items-center">
-                <Tag className="w-6 h-6 mr-2 text-green-600" />
-                Categories ({Object.keys(stats.byCategory).length})
-              </h2>
-              <Link
-                to="/categories"
-                className="text-green-600 hover:text-green-700 font-medium"
-              >
-                Manage Categories →
-              </Link>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Object.entries(stats.byCategory).map(([category, count]) => (
-                <motion.div
-                  key={category}
-                  className="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div 
-                      className="flex items-center space-x-3 flex-1 cursor-pointer"
-                      onClick={() => {
-                        setSelectedCategories([category]);
-                        setViewMode('overview');
-                      }}
-                    >
-                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                        <Tag className="w-6 h-6 text-green-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-slate-900">{category}</h3>
-                        <p className="text-sm text-slate-500">{count} items</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (window.confirm(`Are you sure you want to delete the category "${category}"? This action cannot be undone.`)) {
-                            deleteCategory(category);
-                          }
-                        }}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Delete category"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-        )}
-
-        {/* Analytics View */}
-        {viewMode === 'analytics' && (
-          <motion.div
-            key="analytics"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="space-y-6"
-          >
-            <h2 className="text-xl font-bold text-slate-900 flex items-center">
-              <BarChart3 className="w-6 h-6 mr-2 text-indigo-600" />
-              Analytics & Insights
-            </h2>
-            
-            {/* Content Distribution */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
-                <h3 className="text-lg font-semibold text-slate-900 mb-4">Content Distribution</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-slate-700 flex items-center">
-                      <Quote className="w-4 h-4 mr-2 text-blue-600" />
-                      Quotes
-                    </span>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-32 h-2 bg-slate-200 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-blue-500 rounded-full"
-                          style={{
-                            width: `${stats.totalItems > 0 ? (stats.byType.quotes / stats.totalItems) * 100 : 0}%`
-                          }}
-                        />
-                      </div>
-                      <span className="text-sm text-slate-600 w-8">{stats.byType.quotes}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-slate-700 flex items-center">
-                      <BookOpen className="w-4 h-4 mr-2 text-purple-600" />
-                      Understanding
-                    </span>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-32 h-2 bg-slate-200 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-purple-500 rounded-full"
-                          style={{
-                            width: `${stats.totalItems > 0 ? (stats.byType.understanding / stats.totalItems) * 100 : 0}%`
-                          }}
-                        />
-                      </div>
-                      <span className="text-sm text-slate-600 w-8">{stats.byType.understanding}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Language Distribution */}
-              <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
-                <h3 className="text-lg font-semibold text-slate-900 mb-4">Language Distribution</h3>
-                <div className="space-y-3">
-                  {Object.entries(stats.byLanguage).map(([language, count]) => (
-                    <div key={language} className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-slate-700 capitalize">
-                        {language === 'en' ? 'English' : language}
-                      </span>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-20 h-2 bg-slate-200 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-orange-500 rounded-full"
-                            style={{
-                              width: `${(count / Math.max(...Object.values(stats.byLanguage))) * 100}%`
-                            }}
-                          />
-                        </div>
-                        <span className="text-sm text-slate-600 w-8">{count}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            
-            {/* Monthly Activity */}
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
-              <h3 className="text-lg font-semibold text-slate-900 mb-4">Monthly Activity</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {Object.entries(stats.byMonth).slice(-6).map(([month, count]) => (
-                  <div key={month} className="text-center">
-                    <div className="text-2xl font-bold text-indigo-600">{count}</div>
-                    <div className="text-xs text-slate-500">{month}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            {/* Quick Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 text-center">
-                <div className="text-2xl font-bold text-green-600">{Object.keys(stats.byCategory).length}</div>
-                <div className="text-sm text-slate-600">Categories</div>
-              </div>
-              <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 text-center">
-                <div className="text-2xl font-bold text-blue-600">{stats.recentItems.length}</div>
-                <div className="text-sm text-slate-600">Recent Items</div>
-              </div>
-              <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 text-center">
-                <div className="text-2xl font-bold text-purple-600">
-                  {content.filter(item => item.type === 'understanding' && item.is_draft).length}
-                </div>
-                <div className="text-sm text-slate-600">Drafts</div>
-              </div>
-              <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 text-center">
-                <div className="text-2xl font-bold text-orange-600">
-                  {content.reduce((sum, item) => sum + (item.word_count || 0), 0).toLocaleString()}
-                </div>
-                <div className="text-sm text-slate-600">Total Words</div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Content Detail Modal */}
-      <AnimatePresence>
-        {selectedItem && (
-          <motion.div
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setSelectedItem(null)}
-          >
-            <motion.div
-              className="bg-white rounded-xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-slate-900 flex items-center">
-                  {selectedItem.type === 'quote' ? (
-                    <Quote className="w-6 h-6 mr-2 text-blue-600" />
-                  ) : (
-                    <BookOpen className="w-6 h-6 mr-2 text-purple-600" />
-                  )}
-                  {selectedItem.type === 'quote' ? 'Quote Details' : 'Understanding Details'}
-                </h3>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(selectedItem.content);
-                      toast.success('Content copied to clipboard!');
-                    }}
-                    className="p-2 text-slate-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50"
-                    title="Copy content"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setSelectedItem(null)}
-                    className="p-2 text-slate-400 hover:text-slate-600 transition-colors rounded-lg"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                {/* Categories and Language */}
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex flex-wrap gap-2">
-                    {selectedItem.categories.map(category => (
-                      <div key={category} className={`flex items-center space-x-2 px-3 py-1 rounded-full ${
-                        selectedItem.type === 'quote' ? 'bg-blue-50' : 'bg-purple-50'
-                      }`}>
-                        <Tag className={`w-4 h-4 ${
-                          selectedItem.type === 'quote' ? 'text-blue-600' : 'text-purple-600'
-                        }`} />
-                        <span className={`text-sm font-medium ${
-                          selectedItem.type === 'quote' ? 'text-blue-600' : 'text-purple-600'
-                        }`}>
-                          {category}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex items-center space-x-2 bg-slate-100 px-3 py-1 rounded-full">
-                    <Languages className="w-4 h-4 text-slate-600" />
-                    <span className="text-sm text-slate-600">
-                      {selectedItem.language === 'en' ? 'English' : selectedItem.language}
-                    </span>
-                  </div>
-                  {selectedItem.is_draft && (
-                    <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
-                      Draft
-                    </span>
-                  )}
-                </div>
-
-                {/* Content */}
-                <div>
-                  {selectedItem.type === 'understanding' && (
-                    <h2 className="text-2xl font-bold text-slate-900 mb-4">{selectedItem.title}</h2>
-                  )}
-                  <div className="prose prose-slate max-w-none">
-                    {selectedItem.type === 'quote' ? (
-                      <blockquote className="text-lg text-slate-700 italic border-l-4 border-blue-500 pl-4 py-2">
-                        <RichTextDisplay content={selectedItem.content} />
-                      </blockquote>
-                    ) : (
-                      <RichTextDisplay 
-                        content={selectedItem.content}
-                        className="text-slate-700 leading-relaxed"
-                      />
-                    )}
-                  </div>
-                </div>
-
-                {/* Metadata */}
-                <div className="flex items-center justify-between text-sm text-slate-500 pt-4 border-t border-slate-200">
-                  <div className="flex flex-wrap items-center gap-4">
-                    <div className="flex items-center">
-                      <Calendar className="w-4 h-4 mr-1" />
-                      Created: {new Date(selectedItem.created_at).toLocaleDateString()}
-                    </div>
-                    {selectedItem.updated_at !== selectedItem.created_at && (
-                      <div className="flex items-center">
-                        <Clock className="w-4 h-4 mr-1" />
-                        Updated: {new Date(selectedItem.updated_at).toLocaleDateString()}
-                      </div>
-                    )}
-                    {selectedItem.word_count && (
-                      <div className="flex items-center">
-                        <FileText className="w-4 h-4 mr-1" />
-                        {selectedItem.word_count} words
-                      </div>
-                    )}
-                  </div>
-                  
-                  <Link
-                    to={selectedItem.type === 'quote' ? '/quotes' : '/understanding'}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      selectedItem.type === 'quote'
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
-                        : 'bg-purple-600 text-white hover:bg-purple-700'
-                    }`}
-                    onClick={() => setSelectedItem(null)}
-                  >
-                    View in {selectedItem.type === 'quote' ? 'Quotes' : 'Understanding'} Section
-                  </Link>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <QuickView />
     </div>
   );
 };

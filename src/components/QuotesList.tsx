@@ -1,19 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Plus, 
-  Search, 
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  Plus,
+  Search,
   Quote,
   Calendar,
   Languages,
   Trash2,
   Edit3,
-  ChevronDown,
-  ChevronUp,
   X,
   Copy,
   Share2,
-  Filter
+  Bookmark,
+  BookmarkCheck,
+  Eye,
+  ChevronDown,
+  Check,
+  Filter,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Database } from '../lib/supabase';
@@ -21,824 +23,725 @@ import toast from 'react-hot-toast';
 import RichTextEditor from './RichTextEditor';
 import RichTextDisplay from './RichTextDisplay';
 
+/* ── Helpers ─────────────────────────────────────────────── */
+const stripHtml = (html: string): string => {
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  const text = div.textContent || div.innerText || '';
+  return text.replace(/\s+/g, ' ').trim();
+};
+
 const languageNames: { [key: string]: string } = {
-  en: "English",
-  hi: "हिन्दी (Hindi)",
-  gu: "ગુજરાતી (Gujarati)",
-  sa: "संस्कृत (Sanskrit)",
-  es: "Español (Spanish)",
-  fr: "Français (French)",
-  de: "Deutsch (German)",
-  it: "Italiano (Italian)",
-  pt: "Português (Portuguese)",
-  ru: "Русский (Russian)",
-  zh: "中文 (Chinese)",
-  ja: "日本語 (Japanese)",
-  ko: "한국어 (Korean)"
+  en: 'English', hi: 'हिन्दी (Hindi)', gu: 'ગુજરાતી (Gujarati)',
+  sa: 'संस्कृत (Sanskrit)', es: 'Español', fr: 'Français',
+  de: 'Deutsch', it: 'Italiano', pt: 'Português', ru: 'Русский',
+  zh: '中文', ja: '日本語', ko: '한국어',
 };
 
-type QuoteWithCategories = Database['public']['Tables']['quotes']['Row'] & {
-  categories: Database['public']['Tables']['categories']['Row'][];
+const BOOKMARKS_KEY = 'wk-bookmarked-quotes';
+
+const getBookmarks = (): Set<string> =>
+  new Set(JSON.parse(localStorage.getItem(BOOKMARKS_KEY) || '[]'));
+
+const saveBookmarks = (set: Set<string>) =>
+  localStorage.setItem(BOOKMARKS_KEY, JSON.stringify([...set]));
+
+type QuoteRow = Database['public']['Tables']['quotes']['Row'];
+type CategoryRow = Database['public']['Tables']['categories']['Row'];
+type QuoteWithCategories = QuoteRow & { categories: CategoryRow[] };
+
+/* ── Quote Card ──────────────────────────────────────────── */
+interface QuoteCardProps {
+  quote: QuoteWithCategories;
+  onEdit: (q: QuoteWithCategories) => void;
+  onDelete: (id: string) => void;
+  bookmarked: boolean;
+  onBookmarkToggle: (id: string) => void;
+  onFocusMode: (q: QuoteWithCategories) => void;
+  index: number;
+}
+
+const QuoteCard: React.FC<QuoteCardProps> = ({
+  quote, onEdit, onDelete, bookmarked, onBookmarkToggle, onFocusMode, index
+}) => {
+  const [copied, setCopied] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  // IntersectionObserver fade-up
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setVisible(true); obs.disconnect(); } },
+      { threshold: 0.08 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const isGujarati = quote.language === 'gu';
+  const plainText = stripHtml(quote.text);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(plainText);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = plainText;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    toast.success('Copied to clipboard');
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShare = async () => {
+    const shareText = `"${plainText}"\n\n— WisdomKeeper`;
+    const url = `${window.location.origin}/p/quote/${quote.id}`;
+    if (navigator.share) {
+      await navigator.share({ title: 'WisdomKeeper Quote', text: shareText, url });
+    } else {
+      try {
+        await navigator.clipboard.writeText(`${shareText}\n${url}`);
+        toast.success('Share link copied!');
+      } catch {
+        toast.error('Unable to share');
+      }
+    }
+  };
+
+  return (
+    <div
+      ref={cardRef}
+      className={`quote-card${visible ? ' animate-fade-up' : ''}`}
+      style={{
+        opacity: visible ? 1 : 0,
+        animationDelay: `${index * 60}ms`,
+      }}
+    >
+      {/* Categories */}
+      {quote.categories.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem', marginBottom: '1rem' }}>
+          {quote.categories.map((cat) => (
+            <span key={cat.id} className="tag-pill">{cat.name}</span>
+          ))}
+        </div>
+      )}
+
+      {/* Quote text */}
+      <blockquote
+        lang={isGujarati ? 'gu' : 'en'}
+        style={{
+          fontFamily: isGujarati ? 'var(--font-gujarati)' : 'var(--font-display)',
+          fontSize: isGujarati ? '1.2rem' : 'var(--text-quote)',
+          lineHeight: isGujarati ? 2.0 : 1.7,
+          fontStyle: isGujarati ? 'normal' : 'italic',
+          color: 'var(--color-text-primary)',
+          paddingLeft: '1.25rem',
+          marginBottom: '1.25rem',
+        }}
+      >
+        <RichTextDisplay content={quote.text} />
+      </blockquote>
+
+      {/* Meta */}
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: '0.75rem',
+          paddingTop: '1rem',
+          borderTop: '1px solid var(--color-border)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flex: 1 }}>
+          <Languages size={13} color="var(--color-text-muted)" aria-hidden="true" />
+          <span
+            style={{
+              fontFamily: 'var(--font-ui)',
+              fontSize: 'var(--text-xs)',
+              color: 'var(--color-text-muted)',
+            }}
+          >
+            {languageNames[quote.language] || quote.language}
+          </span>
+          <span style={{ color: 'var(--color-border-strong)', margin: '0 0.25rem' }}>·</span>
+          <Calendar size={13} color="var(--color-text-muted)" aria-hidden="true" />
+          <span
+            style={{
+              fontFamily: 'var(--font-ui)',
+              fontSize: 'var(--text-xs)',
+              color: 'var(--color-text-muted)',
+            }}
+          >
+            {new Date(quote.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+          </span>
+        </div>
+
+        {/* Action buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {/* Copy */}
+          <button
+            onClick={handleCopy}
+            className="btn-icon"
+            aria-label="Copy quote"
+            title="Copy as plain text"
+            style={{ color: copied ? 'var(--color-success)' : undefined }}
+          >
+            {copied ? <Check size={15} /> : <Copy size={15} />}
+          </button>
+
+          {/* Share */}
+          <button
+            onClick={handleShare}
+            className="btn-icon"
+            aria-label="Share quote"
+            title="Share quote"
+          >
+            <Share2 size={15} />
+          </button>
+
+          {/* Bookmark */}
+          <button
+            onClick={() => onBookmarkToggle(quote.id)}
+            className="btn-icon"
+            aria-label={bookmarked ? 'Remove bookmark' : 'Bookmark quote'}
+            title={bookmarked ? 'Remove bookmark' : 'Bookmark'}
+            style={{ color: bookmarked ? 'var(--color-accent)' : undefined }}
+          >
+            {bookmarked ? <BookmarkCheck size={15} /> : <Bookmark size={15} />}
+          </button>
+
+          {/* Focus / reading mode */}
+          <button
+            onClick={() => onFocusMode(quote)}
+            className="btn-icon"
+            aria-label="Reading mode"
+            title="Focus mode"
+          >
+            <Eye size={15} />
+          </button>
+
+          {/* Edit */}
+          <button
+            onClick={() => onEdit(quote)}
+            className="btn-icon"
+            aria-label="Edit quote"
+            title="Edit"
+          >
+            <Edit3 size={15} />
+          </button>
+
+          {/* Delete */}
+          <button
+            onClick={() => onDelete(quote.id)}
+            className="btn-icon"
+            aria-label="Delete quote"
+            title="Delete"
+            style={{ color: 'var(--color-error)' }}
+          >
+            <Trash2 size={15} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
+/* ── Reading Mode Overlay ────────────────────────────────── */
+const ReadingMode: React.FC<{ quote: QuoteWithCategories; onClose: () => void }> = ({ quote, onClose }) => {
+  const isGujarati = quote.language === 'gu';
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  return (
+    <div
+      className="reading-mode-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Reading mode"
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        style={{
+          position: 'absolute',
+          top: '1.5rem',
+          right: '1.5rem',
+        }}
+        className="btn-icon"
+        aria-label="Close reading mode"
+      >
+        <X size={20} />
+      </button>
+      <div
+        style={{ maxWidth: 640, width: '100%', padding: '0 1rem', textAlign: 'center' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            width: 40,
+            height: 2,
+            background: 'var(--color-accent)',
+            margin: '0 auto 2rem',
+          }}
+        />
+        <blockquote
+          lang={isGujarati ? 'gu' : 'en'}
+          style={{
+            fontFamily: isGujarati ? 'var(--font-gujarati)' : 'var(--font-display)',
+            fontSize: isGujarati ? '1.35rem' : 'clamp(1.25rem, 3vw, 2rem)',
+            lineHeight: isGujarati ? 2.2 : 1.75,
+            fontStyle: isGujarati ? 'normal' : 'italic',
+            color: 'var(--color-text-primary)',
+          }}
+        >
+          <RichTextDisplay content={quote.text} />
+        </blockquote>
+        {quote.categories.length > 0 && (
+          <div style={{ marginTop: '2rem', display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+            {quote.categories.map((c) => (
+              <span key={c.id} className="tag-pill">{c.name}</span>
+            ))}
+          </div>
+        )}
+        <p
+          style={{
+            marginTop: '1.5rem',
+            fontFamily: 'var(--font-ui)',
+            fontSize: 'var(--text-xs)',
+            color: 'var(--color-text-muted)',
+          }}
+        >
+          Press Escape or click outside to close
+        </p>
+      </div>
+    </div>
+  );
+};
+
+/* ── Main Component ──────────────────────────────────────── */
 const QuotesList: React.FC = () => {
   const [quotes, setQuotes] = useState<QuoteWithCategories[]>([]);
-  const [categories, setCategories] = useState<Database['public']['Tables']['categories']['Row'][]>([]);
+  const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedLanguage, setSelectedLanguage] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingQuote, setEditingQuote] = useState<QuoteWithCategories | null>(null);
-  const [selectedQuote, setSelectedQuote] = useState<QuoteWithCategories | null>(null);
-  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [focusQuote, setFocusQuote] = useState<QuoteWithCategories | null>(null);
+  const [bookmarks, setBookmarks] = useState<Set<string>>(getBookmarks);
+  const [showFilters, setShowFilters] = useState(false);
+  const [newQuote, setNewQuote] = useState({ text: '', category_ids: [] as string[], language: 'en' });
+  const [submitting, setSubmitting] = useState(false);
 
-  const [newQuote, setNewQuote] = useState({
-    text: '',
-    category_ids: [] as string[],
-    language: 'en'
-  });
+  useEffect(() => { loadData(); }, []);
 
-  const [categorySearchTerm, setCategorySearchTerm] = useState('');
-  const [showCategoryFilter, setShowCategoryFilter] = useState(false);
-
-  useEffect(() => {
-    loadQuotes();
-    loadCategories();
-  }, []);
-
-  const loadQuotes = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('quotes')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const [{ data: quotesData }, { data: categoriesData }] = await Promise.all([
+        supabase.from('quotes').select('*').order('created_at', { ascending: false }),
+        supabase.from('categories').select('*').order('name'),
+      ]);
 
-      if (error) throw error;
-
-      // Load categories for each quote
-      const quotesWithCategories = await Promise.all(
-        (data || []).map(async (quote) => {
-          const { data: categoryData, error: categoryError } = await supabase
-            .from('categories')
-            .select('*')
-            .in('id', quote.category_ids);
-
-          if (categoryError) {
-            console.error('Error loading categories for quote:', categoryError);
-            return { ...quote, categories: [] };
-          }
-
-          return { ...quote, categories: categoryData || [] };
+      const quotesWithCats: QuoteWithCategories[] = await Promise.all(
+        (quotesData || []).map(async (q) => {
+          if (!q.category_ids?.length) return { ...q, categories: [] };
+          const { data: cats } = await supabase.from('categories').select('*').in('id', q.category_ids);
+          return { ...q, categories: cats || [] };
         })
       );
 
-      setQuotes(quotesWithCategories);
-    } catch (error) {
-      console.error('Error loading quotes:', error);
+      setQuotes(quotesWithCats);
+      setCategories(categoriesData || []);
+    } catch (e) {
       toast.error('Failed to load quotes');
     } finally {
       setLoading(false);
     }
   };
 
-  const loadCategories = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .order('name');
-
-      if (error) throw error;
-      setCategories(data || []);
-    } catch (error) {
-      console.error('Error loading categories:', error);
-    }
-  };
+  const handleBookmarkToggle = useCallback((id: string) => {
+    setBookmarks((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); toast('Bookmark removed'); }
+      else { next.add(id); toast.success('Bookmarked!'); }
+      saveBookmarks(next);
+      return next;
+    });
+  }, []);
 
   const handleAddQuote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newQuote.text.trim() || newQuote.category_ids.length === 0) {
-      toast.error('Please fill in all required fields and select at least one category');
+      toast.error('Please fill in the quote and select at least one category');
       return;
     }
-
     try {
-      const { error } = await supabase
+      setSubmitting(true);
+      const { data, error } = await supabase
         .from('quotes')
-        .insert([newQuote]);
-
+        .insert({ ...newQuote, updated_at: new Date().toISOString() })
+        .select()
+        .single();
       if (error) throw error;
-
-      toast.success('Quote added successfully');
+      toast.success('Quote added');
       setNewQuote({ text: '', category_ids: [], language: 'en' });
       setShowAddForm(false);
-      loadQuotes();
-    } catch (error) {
-      console.error('Error adding quote:', error);
+      loadData();
+    } catch (e) {
       toast.error('Failed to add quote');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleUpdateQuote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingQuote) return;
-
     try {
+      setSubmitting(true);
       const { error } = await supabase
         .from('quotes')
-        .update({
-          text: editingQuote.text,
-          category_ids: editingQuote.category_ids,
-          language: editingQuote.language
-        })
+        .update({ text: editingQuote.text, category_ids: editingQuote.category_ids, language: editingQuote.language, updated_at: new Date().toISOString() })
         .eq('id', editingQuote.id);
-
       if (error) throw error;
-
-      toast.success('Quote updated successfully');
+      toast.success('Quote updated');
       setEditingQuote(null);
-      loadQuotes();
-    } catch (error) {
-      console.error('Error updating quote:', error);
+      loadData();
+    } catch {
       toast.error('Failed to update quote');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleDeleteQuote = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this quote?')) return;
-
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this quote?')) return;
     try {
-      const { error } = await supabase
-        .from('quotes')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      toast.success('Quote deleted successfully');
-      loadQuotes();
-    } catch (error) {
-      console.error('Error deleting quote:', error);
-      toast.error('Failed to delete quote');
+      await supabase.from('quotes').delete().eq('id', id);
+      toast.success('Quote deleted');
+      loadData();
+    } catch {
+      toast.error('Failed to delete');
     }
   };
 
-  const handleCategoryToggle = (categoryId: string, isNewQuote: boolean = true) => {
-    if (isNewQuote) {
-      setNewQuote(prev => ({
-        ...prev,
-        category_ids: prev.category_ids.includes(categoryId)
-          ? prev.category_ids.filter(id => id !== categoryId)
-          : [...prev.category_ids, categoryId]
-      }));
-    } else if (editingQuote) {
-      setEditingQuote(prev => prev ? {
-        ...prev,
-        category_ids: prev.category_ids.includes(categoryId)
-          ? prev.category_ids.filter(id => id !== categoryId)
-          : [...prev.category_ids, categoryId]
-      } : null);
-    }
-  };
-
-  const handleFilterCategoryToggle = (categoryId: string) => {
-    setSelectedCategories(prev => 
-      prev.includes(categoryId)
-        ? prev.filter(id => id !== categoryId)
-        : [...prev, categoryId]
-    );
-  };
-
-  const filteredQuotes = quotes.filter(quote => {
-    const matchesSearch = quote.text.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategories.length === 0 || 
-      selectedCategories.some(catId => quote.category_ids.includes(catId));
-    const matchesLanguage = selectedLanguage === '' || quote.language === selectedLanguage;
-    
-    return matchesSearch && matchesCategory && matchesLanguage;
+  const filteredQuotes = quotes.filter((q) => {
+    const matchSearch = stripHtml(q.text).toLowerCase().includes(searchTerm.toLowerCase());
+    const matchCat = selectedCategories.length === 0 || selectedCategories.some((id) => q.category_ids.includes(id));
+    const matchLang = !selectedLanguage || q.language === selectedLanguage;
+    return matchSearch && matchCat && matchLang;
   });
 
-  const toggleCardExpansion = (quoteId: string) => {
-    const newExpanded = new Set(expandedCards);
-    if (newExpanded.has(quoteId)) {
-      newExpanded.delete(quoteId);
-    } else {
-      newExpanded.add(quoteId);
-    }
-    setExpandedCards(newExpanded);
-  };
+  const uniqueLanguages = [...new Set(quotes.map((q) => q.language))];
 
-  const truncateText = (text: string, maxLength: number = 150) => {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
-  };
+  const FormModal: React.FC<{ isEdit?: boolean }> = ({ isEdit }) => {
+    const data = isEdit ? editingQuote! : newQuote;
+    const setData = isEdit
+      ? (d: any) => setEditingQuote(d)
+      : (d: any) => setNewQuote(d);
 
-  const uniqueLanguages = [...new Set(quotes.map(q => q.language))];
-
-  const copyToClipboard = async (text: string, type: string = 'content') => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success(`${type} copied to clipboard!`);
-    } catch (error) {
-      console.error('Failed to copy to clipboard:', error);
-      toast.error('Failed to copy to clipboard');
-    }
-  };
-
-  const copyShareLink = async (id: string) => {
-    try {
-      const url = `${window.location.origin}/p/quote/${id}`;
-      await navigator.clipboard.writeText(url);
-      toast.success('Share link copied!');
-    } catch (error) {
-      console.error('Failed to copy share link:', error);
-      toast.error('Failed to copy share link');
-    }
-  };
-
-  if (loading) {
     return (
-      <div className="p-8">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-slate-200 rounded w-1/4"></div>
-          <div className="grid gap-4">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-32 bg-slate-200 rounded-lg"></div>
-            ))}
+      <div
+        style={{
+          position: 'fixed', inset: 0, zIndex: 100,
+          background: 'rgba(28,28,26,0.5)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '1rem',
+        }}
+        role="dialog" aria-modal="true"
+        aria-label={isEdit ? 'Edit quote' : 'Add quote'}
+      >
+        <div
+          style={{
+            background: 'var(--color-bg-card)',
+            borderRadius: 'var(--radius-xl)',
+            padding: 'clamp(1.5rem, 4vw, 2rem)',
+            width: '100%', maxWidth: 560,
+            maxHeight: '90vh', overflowY: 'auto',
+            boxShadow: 'var(--shadow-lg)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+              {isEdit ? 'Edit Quote' : 'New Quote'}
+            </h2>
+            <button
+              onClick={() => isEdit ? setEditingQuote(null) : setShowAddForm(false)}
+              className="btn-icon" aria-label="Close"
+            >
+              <X size={18} />
+            </button>
           </div>
+
+          <form onSubmit={isEdit ? handleUpdateQuote : handleAddQuote} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {/* Quote text */}
+            <div>
+              <label style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-text-secondary)', display: 'block', marginBottom: '0.5rem' }}>
+                Quote *
+              </label>
+              <RichTextEditor
+                value={data.text}
+                onChange={(v) => setData({ ...data, text: v })}
+                placeholder="Enter the quote…"
+              />
+            </div>
+
+            {/* Language */}
+            <div>
+              <label style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-text-secondary)', display: 'block', marginBottom: '0.5rem' }}>
+                Language
+              </label>
+              <select
+                value={data.language}
+                onChange={(e) => setData({ ...data, language: e.target.value })}
+                className="input-field"
+                style={{ background: 'var(--color-bg-muted)' }}
+              >
+                {Object.entries(languageNames).map(([code, name]) => (
+                  <option key={code} value={code}>{name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Categories */}
+            <div>
+              <label style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-text-secondary)', display: 'block', marginBottom: '0.5rem' }}>
+                Categories *
+              </label>
+              <div
+                style={{
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '0.75rem',
+                  maxHeight: 160, overflowY: 'auto',
+                  background: 'var(--color-bg-muted)',
+                  display: 'flex', flexWrap: 'wrap', gap: '0.5rem',
+                }}
+              >
+                {categories.map((cat) => {
+                  const selected = data.category_ids.includes(cat.id);
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => {
+                        const ids = selected
+                          ? data.category_ids.filter((id: string) => id !== cat.id)
+                          : [...data.category_ids, cat.id];
+                        setData({ ...data, category_ids: ids });
+                      }}
+                      className={`tag-pill${selected ? ' active' : ''}`}
+                      style={{ cursor: 'pointer', border: '1px solid', borderColor: selected ? 'var(--color-accent)' : 'var(--color-border)' }}
+                    >
+                      {selected && <Check size={11} />}
+                      {cat.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', paddingTop: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => isEdit ? setEditingQuote(null) : setShowAddForm(false)}
+                className="btn-ghost"
+              >
+                Cancel
+              </button>
+              <button type="submit" className="btn-primary" disabled={submitting}>
+                {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Add quote'}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     );
-  }
+  };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-50">
-      <div className="mb-12">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-5xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent mb-3">
-              Quotes
-            </h1>
-            <p className="text-lg text-slate-600 font-medium">Collect and organize meaningful quotes</p>
-          </div>
-          <motion.button
-            onClick={() => setShowAddForm(true)}
-            className="bg-gradient-to-r from-blue-600 via-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:shadow-xl transition-all flex items-center space-x-2 shadow-lg w-full sm:w-auto justify-center font-semibold hover:scale-105 active:scale-95"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Plus className="w-5 h-5" />
-            <span>Add Quote</span>
-          </motion.button>
+    <div style={{ padding: 'clamp(1.5rem, 4vw, 2.5rem)', maxWidth: 900, margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.75rem, 4vw, 2.5rem)', fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.02em', marginBottom: '0.25rem' }}>
+            Quotes
+          </h1>
+          <p style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
+            {quotes.length} quote{quotes.length !== 1 ? 's' : ''} in your collection
+          </p>
         </div>
+        <button onClick={() => setShowAddForm(true)} className="btn-primary" aria-label="Add new quote">
+          <Plus size={16} aria-hidden="true" />
+          Add Quote
+        </button>
+      </div>
 
-        {/* Filters */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/50 p-6 shadow-sm space-y-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+      {/* Search + filter bar */}
+      <div
+        style={{
+          background: 'var(--color-bg-card)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '1rem',
+          marginBottom: '1.5rem',
+          boxShadow: 'var(--shadow-xs)',
+        }}
+      >
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          {/* Search */}
+          <div style={{ flex: 1, minWidth: 200, position: 'relative' }}>
+            <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)', pointerEvents: 'none' }} aria-hidden="true" />
             <input
-              type="text"
-              placeholder="Search quotes..."
+              type="search"
+              placeholder="Search quotes…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-4 py-3.5 border border-slate-300/50 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base font-medium transition-all"
+              className="input-field"
+              style={{ paddingLeft: '2.25rem' }}
+              aria-label="Search quotes"
             />
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-4">
-            {/* Enhanced Category Filter */}
-            <div className="flex-1 relative">
-              <button
-                onClick={() => setShowCategoryFilter(!showCategoryFilter)}
-                className="w-full flex items-center justify-between px-4 py-3.5 border border-slate-300/50 rounded-xl text-slate-700 font-medium hover:bg-slate-50 transition-colors"
-              >
-                <div className="flex items-center space-x-2">
-                  <Filter className="w-4 h-4" />
-                  <span>Categories {selectedCategories.length > 0 && `(${selectedCategories.length})`}</span>
-                </div>
-                <ChevronDown className={`w-4 h-4 transition-transform ${showCategoryFilter ? 'rotate-180' : ''}`} />
-              </button>
-
-              <AnimatePresence>
-                {showCategoryFilter && (
-                  <motion.div
-                    className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-10"
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                  >
-                    <div className="p-4 border-b border-slate-200">
-                      <Search className="absolute left-8 top-8 w-4 h-4 text-slate-400" />
-                      <input
-                        type="text"
-                        placeholder="Search categories..."
-                        value={categorySearchTerm}
-                        onChange={(e) => setCategorySearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 border border-slate-300/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                      />
-                    </div>
-                    <div className="max-h-64 overflow-y-auto p-4 space-y-2">
-                      {categories
-                        .filter(cat => cat.name.toLowerCase().includes(categorySearchTerm.toLowerCase()))
-                        .map(category => (
-                          <label key={category.id} className="flex items-center space-x-3 p-3 rounded-lg hover:bg-blue-50 cursor-pointer transition-colors">
-                            <input
-                              type="checkbox"
-                              checked={selectedCategories.includes(category.id)}
-                              onChange={() => handleFilterCategoryToggle(category.id)}
-                              className="w-4 h-4 text-blue-600 focus:ring-blue-500 rounded cursor-pointer"
-                            />
-                            <span className="text-sm font-medium text-slate-700">{category.name}</span>
-                          </label>
-                        ))}
-                    </div>
-                    {selectedCategories.length > 0 && (
-                      <div className="border-t border-slate-200 p-4">
-                        <button
-                          onClick={() => setSelectedCategories([])}
-                          className="w-full text-sm text-blue-600 hover:text-blue-700 font-medium transition-colors"
-                        >
-                          Clear Selection
-                        </button>
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <select
-              value={selectedLanguage}
-              onChange={(e) => setSelectedLanguage(e.target.value)}
-              className="flex-1 px-4 py-3.5 border border-slate-300/50 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium text-slate-900 hover:bg-slate-50 transition-all cursor-pointer"
-            >
-              <option value="">All Languages</option>
-              {uniqueLanguages.map(lang => (
-                <option key={lang} value={lang}>
-                  {languageNames[lang] || lang}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Quotes List */}
-      <div className="space-y-6">
-        <AnimatePresence>
-          {filteredQuotes.map((quote, index) => (
-            <motion.div
-              key={quote.id}
-              className="group bg-white rounded-2xl shadow-sm hover:shadow-lg hover:shadow-blue-200/50 border border-slate-200/50 hover:border-blue-200 transition-all p-6 sm:p-7 cursor-pointer"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ delay: index * 0.03 }}
-              onClick={() => setSelectedQuote(quote)}
-            >
-              <div className="space-y-4">
-                {/* Header with Categories */}
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex flex-wrap items-center gap-2 mb-4">
-                      {quote.categories.map(category => (
-                        <span key={category.id} className="text-xs font-bold bg-gradient-to-r from-blue-100 to-blue-50 text-blue-700 px-3 py-1.5 rounded-full border border-blue-200/50">
-                          {category.name}
-                        </span>
-                      ))}
-                      <div className="flex items-center space-x-1.5 text-xs text-slate-500 font-medium ml-auto sm:ml-0 bg-slate-50 px-3 py-1.5 rounded-full">
-                        <Languages className="w-3.5 h-3.5" />
-                        <span>{languageNames[quote.language] || quote.language}</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        copyShareLink(quote.id);
-                      }}
-                      className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all rounded-lg"
-                      title="Copy share link"
-                    >
-                      <Share2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        copyToClipboard(quote.text, 'Quote');
-                      }}
-                      className="p-2.5 text-slate-400 hover:text-green-600 hover:bg-green-50 transition-all rounded-lg"
-                      title="Copy quote"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingQuote(quote);
-                      }}
-                      className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all rounded-lg"
-                      title="Edit quote"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteQuote(quote.id);
-                      }}
-                      className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all rounded-lg"
-                      title="Delete quote"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Quote Content */}
-                <blockquote className="text-lg text-slate-800 leading-relaxed border-l-4 border-blue-300 pl-6 italic py-2 font-medium group-hover:border-blue-500 transition-colors">
-                  "{expandedCards.has(quote.id) ? (
-                    <RichTextDisplay 
-                      content={quote.text} 
-                      className="inline not-italic text-slate-800"
-                    />
-                  ) : (
-                    <RichTextDisplay 
-                      content={truncateText(quote.text, 180)} 
-                      className="inline not-italic text-slate-800"
-                    />
-                  )}"
-                </blockquote>
-                  
-                {quote.text.length > 180 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleCardExpansion(quote.id);
-                    }}
-                    className="text-blue-600 hover:text-blue-700 text-sm font-bold flex items-center space-x-1.5 transition-colors"
-                  >
-                    <span>{expandedCards.has(quote.id) ? 'Show less' : 'Show more'}</span>
-                    {expandedCards.has(quote.id) ? (
-                      <ChevronUp className="w-4 h-4" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4" />
-                    )}
-                  </button>
-                )}
-
-                {/* Footer */}
-                <div className="pt-4 border-t border-slate-100 flex items-center text-xs font-medium text-slate-500">
-                  <Calendar className="w-3.5 h-3.5 mr-2" />
-                  {new Date(quote.created_at).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric'
-                  })}
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-
-        {filteredQuotes.length === 0 && (
-          <motion.div
-            className="text-center py-20"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+          {/* Language filter */}
+          <select
+            value={selectedLanguage}
+            onChange={(e) => setSelectedLanguage(e.target.value)}
+            className="input-field"
+            style={{ width: 'auto', minWidth: 120, background: 'var(--color-bg-muted)' }}
+            aria-label="Filter by language"
           >
-            <div className="w-20 h-20 bg-gradient-to-br from-slate-200 to-slate-100 rounded-2xl mx-auto mb-6 flex items-center justify-center">
-              <Quote className="w-10 h-10 text-slate-400" />
-            </div>
-            <h3 className="text-2xl font-bold text-slate-900 mb-2">No quotes found</h3>
-            <p className="text-slate-600 font-medium mb-6">
-              {searchTerm || selectedCategories.length > 0 || selectedLanguage
-                ? 'Try adjusting your filters or search terms'
-                : 'Start by adding your first quote'
-              }
-            </p>
-            {!(searchTerm || selectedCategories.length > 0 || selectedLanguage) && (
-              <motion.button
-                onClick={() => setShowAddForm(true)}
-                className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
-                whileHover={{ scale: 1.05 }}
+            <option value="">All languages</option>
+            {uniqueLanguages.map((lang) => (
+              <option key={lang} value={lang}>{languageNames[lang] || lang}</option>
+            ))}
+          </select>
+
+          {/* Filter toggle */}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="btn-ghost"
+            aria-label="Toggle category filters"
+            aria-expanded={showFilters}
+            style={{ color: selectedCategories.length > 0 ? 'var(--color-accent)' : undefined }}
+          >
+            <Filter size={15} />
+            Categories
+            {selectedCategories.length > 0 && (
+              <span
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  width: 18, height: 18, borderRadius: '50%',
+                  background: 'var(--color-accent)', color: '#fff',
+                  fontSize: '10px', fontWeight: 700,
+                }}
               >
-                <Plus className="w-4 h-4 inline mr-2" />
-                Add First Quote
-              </motion.button>
+                {selectedCategories.length}
+              </span>
             )}
-          </motion.div>
+            <ChevronDown size={13} style={{ transform: showFilters ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }} />
+          </button>
+        </div>
+
+        {/* Category pills */}
+        {showFilters && (
+          <div style={{ paddingTop: '0.875rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem', borderTop: '1px solid var(--color-border)', marginTop: '0.875rem' }}>
+            {categories.map((cat) => {
+              const active = selectedCategories.includes(cat.id);
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategories(active ? selectedCategories.filter(id => id !== cat.id) : [...selectedCategories, cat.id])}
+                  className={`tag-pill${active ? ' active' : ''}`}
+                  style={{ cursor: 'pointer' }}
+                  aria-pressed={active}
+                >
+                  {cat.name}
+                </button>
+              );
+            })}
+            {selectedCategories.length > 0 && (
+              <button onClick={() => setSelectedCategories([])} className="btn-ghost" style={{ padding: '0.2rem 0.6rem', minHeight: 'auto' }}>
+                Clear
+              </button>
+            )}
+          </div>
         )}
       </div>
 
-      {/* Quote Detail Modal */}
-      <AnimatePresence>
-        {selectedQuote && (
-          <motion.div
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setSelectedQuote(null)}
-          >
-            <motion.div
-              className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-slate-900">Quote Details</h3>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => copyShareLink(selectedQuote.id)}
-                    className="p-2 text-slate-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50"
-                    title="Copy share link"
-                  >
-                    <Share2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => copyToClipboard(selectedQuote.text, 'Quote')}
-                    className="p-2 text-slate-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50"
-                    title="Copy quote"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setSelectedQuote(null)}
-                    className="p-2 text-slate-400 hover:text-slate-600 transition-colors rounded-lg"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
+      {/* Results count */}
+      {(searchTerm || selectedCategories.length > 0 || selectedLanguage) && (
+        <p style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
+          {filteredQuotes.length} result{filteredQuotes.length !== 1 ? 's' : ''}
+        </p>
+      )}
 
-              <div className="space-y-6">
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex flex-wrap gap-2">
-                    {selectedQuote.categories.map(category => (
-                      <div key={category.id} className="flex items-center space-x-2 bg-blue-50 px-3 py-1 rounded-full">
-                        <Quote className="w-4 h-4 text-blue-600" />
-                        <span className="text-sm font-medium text-blue-600">
-                          {category.name}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex items-center space-x-2 bg-slate-100 px-3 py-1 rounded-full">
-                    <Languages className="w-4 h-4 text-slate-600" />
-                    <span className="text-sm text-slate-600">
-                      {languageNames[selectedQuote.language] || selectedQuote.language}
-                    </span>
-                  </div>
-                </div>
+      {/* Quote cards */}
+      {loading ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="skeleton" style={{ height: 160, borderRadius: 'var(--radius-lg)' }} />
+          ))}
+        </div>
+      ) : filteredQuotes.length === 0 ? (
+        <div
+          style={{
+            textAlign: 'center', padding: '4rem 2rem',
+            background: 'var(--color-bg-card)', border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-lg)',
+          }}
+        >
+          <div style={{ width: 56, height: 56, background: 'var(--color-bg-muted)', borderRadius: 'var(--radius-xl)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+            <Quote size={24} color="var(--color-text-muted)" />
+          </div>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '0.5rem' }}>
+            {searchTerm || selectedCategories.length > 0 ? 'No matching quotes' : 'No quotes yet'}
+          </h3>
+          <p style={{ fontFamily: 'var(--font-ui)', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginBottom: '1.5rem' }}>
+            {searchTerm ? 'Try a different search term' : 'Add your first quote to begin your collection'}
+          </p>
+          {!searchTerm && (
+            <button onClick={() => setShowAddForm(true)} className="btn-primary">
+              <Plus size={15} /> Add your first quote
+            </button>
+          )}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {filteredQuotes.map((q, i) => (
+            <QuoteCard
+              key={q.id}
+              quote={q}
+              onEdit={setEditingQuote}
+              onDelete={handleDelete}
+              bookmarked={bookmarks.has(q.id)}
+              onBookmarkToggle={handleBookmarkToggle}
+              onFocusMode={setFocusQuote}
+              index={i}
+            />
+          ))}
+        </div>
+      )}
 
-                <blockquote className="text-slate-800 text-lg leading-relaxed border-l-4 border-blue-200 pl-6 italic bg-blue-50 p-6 rounded-r-lg">
-                  "<RichTextDisplay 
-                    content={selectedQuote.text} 
-                    className="inline"
-                  />"
-                </blockquote>
-
-                <div className="flex items-center justify-between text-sm text-slate-500 pt-4 border-t border-slate-200">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center">
-                      <Calendar className="w-4 h-4 mr-1" />
-                      Created: {new Date(selectedQuote.created_at).toLocaleDateString()}
-                    </div>
-                    {selectedQuote.updated_at !== selectedQuote.created_at && (
-                      <div className="flex items-center">
-                        <Calendar className="w-4 h-4 mr-1" />
-                        Updated: {new Date(selectedQuote.updated_at).toLocaleDateString()}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Add Quote Modal */}
-      <AnimatePresence>
-        {showAddForm && (
-          <motion.div
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setShowAddForm(false)}
-          >
-            <motion.div
-              className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-slate-900">Add New Quote</h3>
-                <button
-                  onClick={() => setShowAddForm(false)}
-                  className="p-2 text-slate-400 hover:text-slate-600 transition-colors rounded-lg"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              
-              <form onSubmit={handleAddQuote} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Quote Text *
-                  </label>
-                  <RichTextEditor
-                    value={newQuote.text}
-                    onChange={(value) => setNewQuote({ ...newQuote, text: value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Categories * (Select at least one)
-                  </label>
-                  <div className="border border-slate-300 rounded-lg p-4 max-h-48 overflow-y-auto bg-white">
-                    {categories.map(category => (
-                      <label key={category.id} className="flex items-center space-x-2 py-2">
-                        <input
-                          type="checkbox"
-                          checked={newQuote.category_ids.includes(category.id)}
-                          onChange={() => handleCategoryToggle(category.id, true)}
-                          className="text-blue-600 focus:ring-blue-500 rounded"
-                        />
-                        <span className="text-sm text-slate-700">{category.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                  {newQuote.category_ids.length === 0 && (
-                    <p className="text-red-500 text-sm mt-1">Please select at least one category</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Language
-                  </label>
-                  <select
-                    value={newQuote.language}
-                    onChange={(e) => setNewQuote({ ...newQuote, language: e.target.value })}
-                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="en">English</option>
-                    <option value="hi">हिन्दी (Hindi)</option>
-                    <option value="gu">ગુજરાતી (Gujarati)</option>
-                    <option value="sa">संस्कृत (Sanskrit)</option>
-                    <option value="es">Español (Spanish)</option>
-                    <option value="fr">Français (French)</option>
-                    <option value="de">Deutsch (German)</option>
-                    <option value="it">Italiano (Italian)</option>
-                    <option value="pt">Português (Portuguese)</option>
-                    <option value="ru">Русский (Russian)</option>
-                    <option value="zh">中文 (Chinese)</option>
-                    <option value="ja">日本語 (Japanese)</option>
-                    <option value="ko">한국어 (Korean)</option>
-                  </select>
-                </div>
-
-                <div className="flex justify-end space-x-4 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddForm(false)}
-                    className="px-4 py-2 text-slate-600 hover:text-slate-800 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Add Quote
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Edit Quote Modal */}
-      <AnimatePresence>
-        {editingQuote && (
-          <motion.div
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setEditingQuote(null)}
-          >
-            <motion.div
-              className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-slate-900">Edit Quote</h3>
-                <button
-                  onClick={() => setEditingQuote(null)}
-                  className="p-2 text-slate-400 hover:text-slate-600 transition-colors rounded-lg"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              
-              <form onSubmit={handleUpdateQuote} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Quote Text *
-                  </label>
-                  <RichTextEditor
-                    value={editingQuote.text}
-                    onChange={(value) => setEditingQuote({ ...editingQuote, text: value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Categories * (Select at least one)
-                  </label>
-                  <div className="border border-slate-300 rounded-lg p-4 max-h-48 overflow-y-auto bg-white">
-                    {categories.map(category => (
-                      <label key={category.id} className="flex items-center space-x-2 py-2">
-                        <input
-                          type="checkbox"
-                          checked={editingQuote.category_ids.includes(category.id)}
-                          onChange={() => handleCategoryToggle(category.id, false)}
-                          className="text-blue-600 focus:ring-blue-500 rounded"
-                        />
-                        <span className="text-sm text-slate-700">{category.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                  {editingQuote.category_ids.length === 0 && (
-                    <p className="text-red-500 text-sm mt-1">Please select at least one category</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Language
-                  </label>
-                  <select
-                    value={editingQuote.language}
-                    onChange={(e) => setEditingQuote({ ...editingQuote, language: e.target.value })}
-                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="en">English</option>
-                    <option value="hi">हिन्दी (Hindi)</option>
-                    <option value="gu">ગુજરાતી (Gujarati)</option>
-                    <option value="sa">संस्कृत (Sanskrit)</option>
-                    <option value="es">Español (Spanish)</option>
-                    <option value="fr">Français (French)</option>
-                    <option value="de">Deutsch (German)</option>
-                    <option value="it">Italiano (Italian)</option>
-                    <option value="pt">Português (Portuguese)</option>
-                    <option value="ru">Русский (Russian)</option>
-                    <option value="zh">中文 (Chinese)</option>
-                    <option value="ja">日本語 (Japanese)</option>
-                    <option value="ko">한국어 (Korean)</option>
-                  </select>
-                </div>
-
-                <div className="flex justify-end space-x-4 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setEditingQuote(null)}
-                    className="px-4 py-2 text-slate-600 hover:text-slate-800 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Update Quote
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Modals */}
+      {showAddForm && <FormModal />}
+      {editingQuote && <FormModal isEdit />}
+      {focusQuote && <ReadingMode quote={focusQuote} onClose={() => setFocusQuote(null)} />}
     </div>
   );
 };
 
 export default QuotesList;
-

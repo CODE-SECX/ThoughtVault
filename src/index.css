@@ -1,3 +1,444 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300;1,400&family=Inter:wght@300;400;500;600&family=Noto+Serif+Gujarati:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ============================================================
+   LIGHT MODE — applied to html element always (default)
+   ============================================================ */
+html {
+  --color-bg:            #FAFAF7;
+  --color-bg-card:       #FFFFFF;
+  --color-bg-muted:      #F4F3EE;
+  --color-text-primary:  #1C1C1A;
+  --color-text-secondary:#6B6B63;
+  --color-text-muted:    #9B9B91;
+  --color-accent:        #8B6F5C;
+  --color-accent-light:  #F0E8E2;
+  --color-accent-hover:  #7A6050;
+  --color-border:        #E5E4DF;
+  --color-border-strong: #C8C7C0;
+  --color-success:       #5C8B6F;
+  --color-error:         #8B5C5C;
+
+  --shadow-xs: 0 1px 2px rgba(28,28,26,0.04);
+  --shadow-sm: 0 2px 8px rgba(28,28,26,0.06), 0 1px 2px rgba(28,28,26,0.04);
+  --shadow-md: 0 4px 16px rgba(28,28,26,0.08), 0 2px 4px rgba(28,28,26,0.04);
+  --shadow-lg: 0 8px 32px rgba(28,28,26,0.10), 0 2px 8px rgba(28,28,26,0.06);
+
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* ============================================================
+   DARK MODE — applied when html has class="dark"
+   ============================================================ */
+html.dark {
+  --color-bg:            #141412;
+  --color-bg-card:       #1C1C1A;
+  --color-bg-muted:      #232320;
+  --color-text-primary:  #EEEEE8;
+  --color-text-secondary:#9B9B8F;
+  --color-text-muted:    #6B6B60;
+  --color-accent:        #C4A882;
+  --color-accent-light:  #2C2620;
+  --color-accent-hover:  #D4B892;
+  --color-border:        #2C2C28;
+  --color-border-strong: #3C3C38;
+  --color-success:       #7BAF8F;
+  --color-error:         #AF7B7B;
+
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.25), 0 1px 2px rgba(0,0,0,0.15);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.30), 0 2px 4px rgba(0,0,0,0.20);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.25);
+}
+
+/* ============================================================
+   TYPOGRAPHY + FONT TOKENS
+   ============================================================ */
+:root {
+  --font-display:  'Playfair Display', Georgia, serif;
+  --font-body:     'Merriweather', Georgia, serif;
+  --font-ui:       'Inter', system-ui, sans-serif;
+  --font-gujarati: 'Noto Serif Gujarati', serif;
+
+  --text-xs:    0.75rem;
+  --text-sm:    0.875rem;
+  --text-base:  1.0625rem;
+  --text-lg:    1.25rem;
+  --text-xl:    1.5rem;
+  --text-quote: clamp(1.2rem, 2.5vw, 1.6rem);
+
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   16px;
+  --radius-xl:   24px;
+  --radius-pill: 999px;
+
+  --nav-height:     56px;
+  --sidebar-width:  256px;
+
+  --transition-fast: 150ms ease;
+  --transition-base: 250ms ease;
+  --transition-slow: 400ms ease;
+}
+
+/* ============================================================
+   BASE RESET
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  line-height: 1.7;
+  color: var(--color-text-primary);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Smooth transition when theme changes */
+  transition: background-color var(--transition-slow), color var(--transition-slow);
+}
+
+/* Every element that uses bg/text tokens transitions smoothly */
+*, *::before, *::after {
+  transition: background-color var(--transition-slow), border-color var(--transition-slow), color var(--transition-slow);
+}
+
+/* But don't slow down interactive transitions */
+button, a, input, select, textarea {
+  transition: background-color var(--transition-fast), border-color var(--transition-fast),
+              color var(--transition-fast), box-shadow var(--transition-fast),
+              opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
+
+/* ============================================================
+   FOCUS
+   ============================================================ */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+/* ============================================================
+   READING PROGRESS BAR
+   ============================================================ */
+.reading-progress {
+  position: fixed;
+  top: 0; left: 0;
+  height: 2px;
+  background: var(--color-accent);
+  z-index: 999;
+  transition: width 100ms linear;
+  pointer-events: none;
+}
+
+/* ============================================================
+   SKELETON LOADING
+   ============================================================ */
+@keyframes sk-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+.skeleton {
+  background: var(--color-border);
+  border-radius: var(--radius-sm);
+  animation: sk-pulse 1.8s ease infinite;
+}
+
+/* ============================================================
+   FADE-UP ANIMATION
+   ============================================================ */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* ============================================================
+   CARD
+   ============================================================ */
+.wk-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  transition: box-shadow var(--transition-base), border-color var(--transition-base);
+}
+.wk-card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-border-strong);
+}
+
+/* Quote card with left accent */
+.quote-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.75rem;
+  box-shadow: var(--shadow-xs);
+  position: relative;
+  overflow: hidden;
+}
+.quote-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 1.5rem; bottom: 1.5rem;
+  width: 3px;
+  background: var(--color-accent);
+  border-radius: 0 3px 3px 0;
+  opacity: 0.65;
+}
+.quote-card:hover { box-shadow: var(--shadow-md); border-color: var(--color-border-strong); }
+.quote-card:hover::before { opacity: 1; }
+
+/* ============================================================
+   TAG / BADGE
+   ============================================================ */
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.65rem;
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.tag-pill.active {
+  background: var(--color-accent-light);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  background: var(--color-accent);
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  min-height: 44px;
+  text-decoration: none;
+}
+.btn-primary:hover  { background: var(--color-accent-hover); box-shadow: 0 2px 8px rgba(139,111,92,0.3); }
+.btn-primary:active { transform: scale(0.98); }
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.875rem;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  min-height: 44px;
+  text-decoration: none;
+}
+.btn-ghost:hover { background: var(--color-bg-muted); color: var(--color-text-primary); border-color: var(--color-border-strong); }
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px; height: 34px;
+  background: transparent;
+  color: var(--color-text-muted);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.btn-icon:hover { background: var(--color-bg-muted); color: var(--color-text-primary); }
+
+/* ============================================================
+   INPUTS
+   ============================================================ */
+.input-field {
+  width: 100%;
+  padding: 0.7rem 1rem;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  min-height: 44px;
+  appearance: auto;
+}
+.input-field:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+.input-field::placeholder { color: var(--color-text-muted); }
+
+/* ============================================================
+   NAV LINKS (sidebar)
+   ============================================================ */
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.6rem 0.875rem;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  position: relative;
+}
+.nav-link:hover { background: var(--color-bg-muted); color: var(--color-text-primary); }
+.nav-link.active { background: var(--color-accent-light); color: var(--color-accent); }
+.nav-link.active::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 20%; bottom: 20%;
+  width: 3px;
+  background: var(--color-accent);
+  border-radius: 0 2px 2px 0;
+}
+
+/* ============================================================
+   MOBILE NAV
+   ============================================================ */
+.mobile-bottom-nav {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: 60px;
+  background: var(--color-bg-card);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  z-index: 50;
+}
+.mobile-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  min-height: 44px;
+}
+.mobile-nav-item.active { color: var(--color-accent); }
+
+/* ============================================================
+   RICH TEXT (Quill overrides)
+   ============================================================ */
+.ql-toolbar.ql-snow {
+  border-color: var(--color-border) !important;
+  border-top-left-radius: var(--radius-md) !important;
+  border-top-right-radius: var(--radius-md) !important;
+  background: var(--color-bg-muted) !important;
+  font-family: var(--font-ui) !important;
+}
+.ql-container.ql-snow {
+  border-color: var(--color-border) !important;
+  border-bottom-left-radius: var(--radius-md) !important;
+  border-bottom-right-radius: var(--radius-md) !important;
+  font-family: var(--font-body) !important;
+  font-size: var(--text-base) !important;
+  color: var(--color-text-primary) !important;
+}
+.ql-editor {
+  min-height: 150px !important;
+  padding: 1rem !important;
+  background: var(--color-bg-card) !important;
+  color: var(--color-text-primary) !important;
+  line-height: 1.8 !important;
+}
+.ql-editor.ql-blank::before {
+  color: var(--color-text-muted) !important;
+  font-style: italic !important;
+}
+.ql-snow .ql-stroke { stroke: var(--color-text-secondary) !important; }
+.ql-snow .ql-fill  { fill: var(--color-text-secondary) !important; }
+.ql-snow .ql-picker-label { color: var(--color-text-secondary) !important; }
+
+.rich-text-display {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: 1.85;
+  color: var(--color-text-primary);
+}
+.rich-text-display p { margin-bottom: 0.75em; }
+.rich-text-display p:last-child { margin-bottom: 0; }
+.rich-text-display strong { font-weight: 700; }
+.rich-text-display em { font-style: italic; }
+.rich-text-display blockquote {
+  border-left: 3px solid var(--color-accent);
+  padding-left: 1em;
+  color: var(--color-text-secondary);
+  margin: 0.875em 0;
+}
+
+/* ============================================================
+   HIGHLIGHT (search)
+   ============================================================ */
+mark {
+  background: var(--color-accent-light);
+  color: var(--color-accent);
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+/* ============================================================
+   LANG ATTRIBUTE
+   ============================================================ */
+[lang="gu"] {
+  font-family: var(--font-gujarati) !important;
+  font-size: 1.12em;
+  line-height: 2.0;
+}
+
+/* ============================================================
+   PAGE WRAPPER UTILITY
+   ============================================================ */
+.page-wrap {
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+  max-width: 900px;
+  margin: 0 auto;
+}
+.page-wrap-wide {
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+  max-width: 960px;
+  margin: 0 auto;
+}

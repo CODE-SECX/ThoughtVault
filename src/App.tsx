@@ -21,9 +21,10 @@ const LayoutRoute: React.FC = () => (
 function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      {/* Background uses design token, not hardcoded gradient */}
+      <div style={{ minHeight: '100vh', background: 'var(--color-bg)' }}>
         <Routes>
-<Route element={<LayoutRoute />}>
+          <Route element={<LayoutRoute />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/quotes" element={<QuotesList />} />
             <Route path="/understanding" element={<UnderstandingList />} />
@@ -32,32 +33,30 @@ function App() {
             <Route path="/index" element={<ContentIndex />} />
           </Route>
           <Route path="/understanding/:id" element={<UnderstandingDetail />} />
-          {/* Public shareable routes (no Layout wrapper) */}
+          {/* Public shareable routes */}
           <Route path="/p/quote/:id" element={<PublicQuote />} />
           <Route path="/p/understanding/:id" element={<PublicUnderstanding />} />
         </Routes>
-        
+
         <Toaster
           position="top-right"
           toastOptions={{
-            duration: 4000,
+            duration: 3500,
             style: {
-              background: '#fff',
-              color: '#1f2937',
-              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-              border: '1px solid #e5e7eb',
+              background: 'var(--color-bg-card)',
+              color: 'var(--color-text-primary)',
+              border: '1px solid var(--color-border)',
+              boxShadow: 'var(--shadow-md)',
+              fontFamily: 'var(--font-ui)',
+              fontSize: '14px',
+              borderRadius: '10px',
+              padding: '12px 16px',
             },
             success: {
-              iconTheme: {
-                primary: '#059669',
-                secondary: '#fff',
-              },
+              iconTheme: { primary: 'var(--color-accent)', secondary: '#fff' },
             },
             error: {
-              iconTheme: {
-                primary: '#dc2626',
-                secondary: '#fff',
-              },
+              iconTheme: { primary: 'var(--color-error)', secondary: '#fff' },
             },
           }}
         />
